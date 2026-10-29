@@ -1,0 +1,9 @@
+{
+  "id": "proto-format-d",
+  "name": "PROTOTYPE format D: callout after block",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "Throwaway prototype. Annotations as {Target}(r1) plus a > [!review] r1 callout after the containing block. Acts only on notes with review-format: D.",
+  "author": "prototype",
+  "isDesktopOnly": false
+}
