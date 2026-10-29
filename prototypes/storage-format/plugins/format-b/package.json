@@ -1,0 +1,17 @@
+{
+  "name": "proto-format-b",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PROTOTYPE (throwaway): storage format B, footnote at end.",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs",
+    "note": "node make-note.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "esbuild": "^0.25.0",
+    "obsidian": "1.14.4",
+    "typescript": "^5.6.0"
+  }
+}

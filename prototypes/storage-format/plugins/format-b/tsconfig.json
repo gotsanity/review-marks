@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["DOM", "ES2019"],
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

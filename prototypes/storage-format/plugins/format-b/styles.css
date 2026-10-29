@@ -1,0 +1,95 @@
+/* PROTOTYPE format B: footnote at end. */
+
+.proto-b-target {
+  background-color: rgba(255, 170, 60, 0.28);
+  border-bottom: 2px solid rgba(255, 140, 0, 0.8);
+  border-radius: 2px;
+  cursor: help;
+}
+.proto-b-target.proto-b-revealed {
+  background-color: rgba(255, 170, 60, 0.15);
+  cursor: text;
+}
+.proto-b-syntax {
+  color: var(--text-faint);
+  background-color: rgba(255, 140, 0, 0.12);
+}
+.proto-b-syntax-hidden,
+.proto-b-native-ref-hidden {
+  display: none;
+}
+
+.proto-b-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 0.75em;
+  line-height: 1.6;
+  vertical-align: 0.15em;
+  color: var(--text-on-accent);
+  background-color: rgba(230, 120, 0, 0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.proto-b-indicator-icon {
+  display: inline-flex;
+}
+.proto-b-indicator-icon svg {
+  width: 11px;
+  height: 11px;
+}
+
+.proto-b-popover {
+  position: fixed;
+  top: var(--proto-b-top, 0);
+  left: var(--proto-b-left, 0);
+  z-index: var(--layer-popover);
+  max-width: 360px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  font-size: var(--font-ui-small);
+}
+.proto-b-popover-head {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 4px;
+}
+.proto-b-popover-body {
+  white-space: pre-wrap;
+}
+
+/* Definition lines at the end of the note, in Live Preview. */
+.proto-b-def-line {
+  background-color: rgba(255, 170, 60, 0.08);
+  border-left: 3px solid rgba(255, 140, 0, 0.6);
+}
+
+/* Obsidian's own rendered footnote list, Reading view. */
+.proto-b-def-item {
+  background-color: rgba(255, 170, 60, 0.08);
+}
+.proto-b-def-label {
+  margin-right: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  color: var(--text-on-accent);
+  background-color: rgba(230, 120, 0, 0.85);
+}
+
+.proto-b-textarea {
+  width: 100%;
+  min-height: 7em;
+}
+.proto-b-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 4px 0 8px;
+}
