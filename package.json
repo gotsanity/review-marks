@@ -1,0 +1,7 @@
+{
+  "name": "obsidian-annotations",
+  "private": true,
+  "scripts": {
+    "prototype:storage-format": "node prototypes/storage-format/build-all.mjs"
+  }
+}

@@ -1,0 +1,41 @@
+/* PROTOTYPE switcher. Deliberately loud so it is not mistaken for the design under review. */
+.proto-switcher-pill {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #111;
+  color: #ffeb3b;
+  border: 2px solid #ffeb3b;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  user-select: none;
+}
+.proto-switcher-pill button {
+  background: #ffeb3b;
+  color: #111;
+  border: none;
+  border-radius: 999px;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+.proto-switcher-pill button:hover {
+  background: #fff;
+}
+.proto-switcher-label {
+  padding: 0 8px;
+  white-space: nowrap;
+}
