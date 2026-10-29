@@ -1,0 +1,16 @@
+{
+  "name": "proto-format-d",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PROTOTYPE (throwaway): storage format D, callout after block",
+  "scripts": {
+    "build": "node esbuild.config.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "latest",
+    "typescript": "^5.6.0"
+  }
+}
