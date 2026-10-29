@@ -1,0 +1,9 @@
+{
+  "id": "proto-format-b",
+  "name": "PROTOTYPE format B: footnote at end",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "Throwaway prototype. {target}[^rN] inline, [^rN]: instruction at the end of the note. Acts only on notes with review-format: B.",
+  "author": "prototype",
+  "isDesktopOnly": false
+}
