@@ -1,6 +1,7 @@
 import { $, browser, expect } from '@wdio/globals';
 import { afterEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Collisions.md';
 
@@ -19,7 +20,7 @@ const undo = () =>
 /** Opens a note in Live Preview with `selection` selected. */
 async function open(text: string, selection?: string): Promise<void> {
 	await browser.executeObsidian(({ app }) => app.workspace.detachLeavesOfType('markdown'));
-	await obsidianPage.resetVault({ [NOTE]: text });
+	await resetVaultTo({ [NOTE]: text });
 	await obsidianPage.openFile(NOTE);
 	await browser.waitUntil(async () => (await editorText()) === text);
 	await browser.executeObsidian(

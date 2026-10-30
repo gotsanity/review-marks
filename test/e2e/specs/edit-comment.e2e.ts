@@ -1,6 +1,7 @@
 import { $, browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Edit me.md';
 const TEXT = '# One\n\nKell {fails}[^r1] the save and seizes in place.\n\nMore text down here.\n\n[^r1]: Why?\n';
@@ -12,7 +13,7 @@ const clearNotices = () => browser.executeObsidian(() => document.querySelectorA
 
 /** Opens the note in Live Preview and the comment box on r1, with its text cleared. */
 async function editAndClear(): Promise<void> {
-	await obsidianPage.resetVault({ [NOTE]: TEXT });
+	await resetVaultTo({ [NOTE]: TEXT });
 	await obsidianPage.openFile(NOTE);
 	await browser.executeObsidian(async ({ app, obsidian }) => {
 		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);

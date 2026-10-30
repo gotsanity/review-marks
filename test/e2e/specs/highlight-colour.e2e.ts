@@ -1,6 +1,7 @@
 import { $, browser, expect } from '@wdio/globals';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Colour me.md';
 // `==marked==` is Obsidian's own highlight: the theme's highlight colour to match.
@@ -39,7 +40,7 @@ const VIEWS = [
 
 describe('Highlight colour', () => {
 	beforeEach(async () => {
-		await obsidianPage.resetVault({ [NOTE]: TEXT });
+		await resetVaultTo({ [NOTE]: TEXT });
 		await obsidianPage.openFile(NOTE);
 	});
 	afterEach(() => update({ highlightColour: '' }));

@@ -2,6 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Annotate me.md';
 const TEXT = '# One\n\nKell fails the save and seizes in place.\n\n## Two\n\nMore text.\n';
@@ -9,7 +10,7 @@ const TARGET = 'the save';
 
 /** Opens a note in Live Preview with `target` selected, scrolled into view, and the editor focused. */
 async function openWithSelection(text = TEXT, target = TARGET): Promise<void> {
-	await obsidianPage.resetVault({ [NOTE]: text });
+	await resetVaultTo({ [NOTE]: text });
 	await obsidianPage.openFile(NOTE);
 	await browser.executeObsidian(
 		async ({ app, obsidian }, target) => {

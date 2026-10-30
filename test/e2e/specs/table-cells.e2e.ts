@@ -2,6 +2,7 @@ import { browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { NOTES } from '../fixtures';
+import { resetVaultTo } from '../harness.ts';
 
 /** Opens `note` in Live Preview. */
 async function openInLivePreview(note: string): Promise<void> {
@@ -177,7 +178,7 @@ describe('Live Preview tables the guard does not recognise', () => {
 		'# Ragged\n\nThe {save}[^r1] stands.\n\n| A | B |\n|---|---|\n| {x}[^r2] | y | extra |\n\n[^r1]: One.\n[^r2]: Two.\n';
 
 	it('leaves the table undecorated and everything else working', async () => {
-		await obsidianPage.resetVault({ [NOTE]: TEXT });
+		await resetVaultTo({ [NOTE]: TEXT });
 		await openInLivePreview(NOTE);
 		const widgetShown = () =>
 			browser.executeObsidian(({ app, obsidian }) => {

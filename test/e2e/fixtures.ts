@@ -5,6 +5,8 @@
 export const VAULTS = {
 	/** The prototype's two 12-case sample notes, one per definition placement. */
 	reviewSamples: 'test/e2e/vaults/review-samples',
+	/** No notes, only an empty config dir. See resetVaultTo in harness.ts. */
+	empty: 'test/e2e/vaults/empty',
 } as const;
 
 /** The vault every session opens with (see wdio.conf.mts). */

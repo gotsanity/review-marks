@@ -2,6 +2,7 @@ import { browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { NOTES } from '../fixtures.ts';
+import { resetVaultTo } from '../harness.ts';
 
 /** One rendered block (a Live Preview line, or a Reading view element) holding part of a Target. */
 interface Part {
@@ -112,7 +113,7 @@ describe('Targets across blocks and in headings', () => {
 		const NOTE = 'Across.md';
 		const TEXT = 'Alpha {first para.\n\n## Middle\n\nGamma}[^r1] delta.\n\n[^r1]: Spans three blocks.\n';
 		beforeEach(async () => {
-			await obsidianPage.resetVault({ [NOTE]: TEXT });
+			await resetVaultTo({ [NOTE]: TEXT });
 		});
 
 		it('highlights each block in Live Preview', async () => {
@@ -140,7 +141,8 @@ describe('Targets across blocks and in headings', () => {
 			});
 
 			it('highlights r12 in a heading in Live Preview', async () => {
-				expect(await livePreviewParts(note, 'r12')).toEqual([
+				// The heading's line class comes from the syntax tree, which a long note parses in the background.
+				expect(await livePreviewParts(note, 'r12', (p) => p.some((x) => x.block === 'header'))).toEqual([
 					{ block: 'header', target: 'Call of the Void', bulletHighlighted: false },
 				]);
 			});

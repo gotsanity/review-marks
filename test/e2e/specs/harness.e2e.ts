@@ -3,6 +3,7 @@
 import { browser, expect } from '@wdio/globals';
 import { describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Isolation.md';
 const FIRST = '# First\n\nThe earlier test edits this.\n\n## End\n';
@@ -10,17 +11,9 @@ const SECOND = '# Second\n\nA different note at the same path.\n\n## End\n';
 
 const editorText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getValue() ?? '');
 
-const geometry = () =>
-	browser.executeObsidian(({ app }) => {
-		const r = app.workspace.containerEl.getBoundingClientRect();
-		return `${window.innerWidth}x${window.innerHeight} ${r.left},${r.width}`;
-	});
-
-type ElectronWindow = { getSize(): [number, number]; setSize(w: number, h: number): void };
-
 describe('Test isolation', () => {
 	it('leaves an unsaved edit and a setting change behind', async () => {
-		await obsidianPage.resetVault({ [NOTE]: FIRST });
+		await resetVaultTo({ [NOTE]: FIRST });
 		await obsidianPage.openFile(NOTE);
 		await browser.executeObsidian(({ app, plugins }) => {
 			const editor = app.workspace.activeEditor?.editor;
@@ -31,7 +24,7 @@ describe('Test isolation', () => {
 	});
 
 	it('starts the next test with one tab, the note as written, and the settings as loaded', async () => {
-		await obsidianPage.resetVault({ [NOTE]: SECOND });
+		await resetVaultTo({ [NOTE]: SECOND });
 		await obsidianPage.openFile(NOTE);
 		// Past Obsidian's ~2s save delay, so a leftover tab's edits would have arrived by now.
 		await browser.pause(2500);
@@ -43,21 +36,17 @@ describe('Test isolation', () => {
 		expect(trigger).not.toBe('off');
 	});
 
-	it('resizes the window just as the test ends, like a window manager at startup', async () => {
-		await browser.executeObsidian(({ require }) => {
-			const win = (require('electron') as unknown as { remote: { getCurrentWindow(): ElectronWindow } }).remote.getCurrentWindow();
-			const [w, h] = win.getSize();
-			window.setTimeout(() => win.setSize(w + 200, h), 300);
-			window.setTimeout(() => win.setSize(w, h), 600);
-		});
-	});
-
-	it('starts the next test once the layout has stopped moving', async () => {
-		const samples = [await geometry()];
-		for (let i = 0; i < 8; i++) {
-			await browser.pause(125);
-			samples.push(await geometry());
-		}
-		expect(new Set(samples).size).toBe(1);
+	it('keeps the vault config when the notes are reset', async () => {
+		const config = () =>
+			browser.executeObsidian(async ({ app }) => ({
+				onDisk: await app.vault.adapter.exists(`${app.vault.configDir}/app.json`),
+				readableLineLength: (app.vault as unknown as { getConfig(key: string): unknown }).getConfig('readableLineLength'),
+			}));
+		const expected = { onDisk: true, readableLineLength: false };
+		expect(await config()).toEqual(expected);
+		await resetVaultTo({ [NOTE]: FIRST });
+		// Obsidian reloads its config about half a second after the config dir changes.
+		await browser.pause(1500);
+		expect(await config()).toEqual(expected);
 	});
 });

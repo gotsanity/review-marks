@@ -2,6 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { NOTES } from '../fixtures.ts';
+import { resetVaultTo } from '../harness.ts';
 
 /** Opens `note` in Live Preview with the cursor in a body line about a third of the way down, scrolled to the top. */
 async function openInTheMiddle(note: string, text: string): Promise<void> {
@@ -83,7 +84,7 @@ describe('move comments', () => {
 
 	it('leaves orphan definitions in place and gives their count', async () => {
 		const note = 'Orphans.md';
-		await obsidianPage.resetVault({ [note]: '# One\n\n{A}[^r1].\n\n[^r1]: Ay.\n[^r7]: Orphan.\n\n# Two\n\nEnd.\n' });
+		await resetVaultTo({ [note]: '# One\n\n{A}[^r1].\n\n[^r1]: Ay.\n[^r7]: Orphan.\n\n# Two\n\nEnd.\n' });
 		await obsidianPage.openFile(note);
 		await browser.executeObsidianCommand('review-marks:move-comments-to-end-of-note');
 		expect(await editorText()).toBe('# One\n\n{A}[^r1].\n\n[^r7]: Orphan.\n\n# Two\n\nEnd.\n\n[^r1]: Ay.\n');
@@ -92,7 +93,7 @@ describe('move comments', () => {
 
 	it('writes new Comments at the end of the note when the placement setting says so', async () => {
 		const note = 'Placement.md';
-		await obsidianPage.resetVault({ [note]: '# One\n\nAlpha beta.\n\n# Two\n\nGamma.\n' });
+		await resetVaultTo({ [note]: '# One\n\nAlpha beta.\n\n# Two\n\nGamma.\n' });
 		await obsidianPage.openFile(note);
 		await browser.executeObsidian(({ app, plugins }) => {
 			(plugins.reviewMarks as unknown as { settings: { placement: string } }).settings.placement = 'end-of-note';
