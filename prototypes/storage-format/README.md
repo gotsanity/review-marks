@@ -81,6 +81,16 @@ The 12 cases:
 
 The test note keeps one `<!-- PROTOTYPE NOTE -->` comment at the end. It says that r9 targets the first of two identical `17 (fail)` cells.
 
+## Annotations sidebar
+
+Open it with the ribbon icon (speech bubble) or the command **Open annotations sidebar** (no default hotkey). It sits in the right sidebar and follows the active note.
+
+- **The list.** The total count is at the top. Below it, every Annotation in the note is grouped under the heading section its Target starts in, nested by heading level. Click a heading to collapse or expand it; this survives edits. Annotations before the first heading go in a top group named after the note. A definition with no marker goes in **Comments without a target**.
+- **Each entry.** The first line is the Target, about 80 characters, with markup stripped and blocks joined by ` / `. Below it is the Comment in a textarea. It saves when you leave the box or press Ctrl/Cmd+Enter, and Esc throws your change away. Multi-line comments keep their lines. Saving an empty comment is refused; use unwrap instead. Each save is one undo step in the note.
+- **Click the Target line** to jump. In Live Preview or Source mode, the cursor goes to the start of the Target and the editor scrolls to it, table cells included. In Reading view, the note scrolls there and the Target flashes. On mobile, the drawer closes first.
+- **Unwrap** (eraser button, always visible) removes the braces, the marker and the definition, and keeps the Target as plain text. If the note is open, it is one undo step; otherwise it goes through `Vault.process`.
+- **Live updates.** The list refreshes when you switch notes, while you type in the note, and after edits from the sidebar. A textarea you are typing in keeps its text, caret and focus through a refresh.
+
 ## Code layout
 
 `plugins/review-marks/src/`:
@@ -95,6 +105,7 @@ The test note keeps one `<!-- PROTOTYPE NOTE -->` comment at the end. It says th
 | `render-reading.ts` | Reading view post processor and the footnote list. |
 | `commands.ts` | The two commands, `createAnnotation(editor, from, to, comment)` and `writeComment(editor \| file, id, comment)`. |
 | `convert.ts` | The two "Move comments to …" commands. |
+| `sidebar.ts` | The annotations sidebar (`ItemView`) and `unwrapAnnotation(editor \| file, id)`. |
 | `main.ts` | Wiring only. |
 
-`createAnnotation` and `writeComment` are also on the plugin instance as `app.plugins.plugins['proto-review-marks'].api`.
+`createAnnotation`, `writeComment` and `unwrapAnnotation` are also on the plugin instance as `app.plugins.plugins['proto-review-marks'].api`.
