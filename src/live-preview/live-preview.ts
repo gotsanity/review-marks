@@ -8,6 +8,7 @@ import { blockPrefixLength, excerpt, isTableLine, parse, type Annotation } from 
 import { provisionalField, provisionalId } from '../apply/provisional';
 import type { ReviewMarksSettings } from '../settings';
 import { BadgeWidget, badgeText } from './badge';
+import { cellEditorTracking, inTableCell, setCellEditor } from './cell-editor';
 
 /** Parsed Annotations of the editor's note, kept current on every edit. */
 export const annotationsField = StateField.define<Annotation[]>({
@@ -66,11 +67,13 @@ function buildDecorations(state: EditorState, settings: () => ReviewMarksSetting
 	const out: Range<Decoration>[] = [];
 
 	for (const a of state.field(annotationsField)) {
-		// Table rows are drawn by Obsidian's table widget; ticket #24 decorates inside it.
+		// Table rows are drawn by Obsidian's table widget; table-cells.ts decorates inside it.
 		if (isTableLine(doc.lineAt(a.open).text) || isTableLine(doc.lineAt(a.close).text)) continue;
 		// Revealed while the cursor is anywhere from just before `{` to inside the marker. Just after
 		// the marker counts as outside, so typing on after a new Annotation stays calm.
-		const revealed = focused && state.selection.ranges.some((r) => r.from < a.markerEnd && r.to >= a.open);
+		// A table cell's editor always shows the syntax: it has no definitions to badge.
+		const revealed =
+			inTableCell(state) || (focused && state.selection.ranges.some((r) => r.from < a.markerEnd && r.to >= a.open));
 		const mark = Decoration.mark({
 			class: revealed ? 'rm-target rm-revealed' : 'rm-target',
 			attributes: { 'data-rm-id': a.id },
@@ -104,7 +107,7 @@ export function livePreview(settings: () => ReviewMarksSettings): Extension {
 				tr.startState.field(editorLivePreviewField, false) !== tr.state.field(editorLivePreviewField, false);
 			const typingChanged =
 				tr.startState.field(provisionalField, false) !== tr.state.field(provisionalField, false);
-			const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refreshLivePreview));
+			const effects = tr.effects.some((e) => e.is(setFocus) || e.is(refreshLivePreview) || e.is(setCellEditor));
 			if (tr.docChanged || tr.selection || modeChanged || typingChanged || effects) {
 				return buildDecorations(tr.state, settings);
 			}
@@ -112,5 +115,5 @@ export function livePreview(settings: () => ReviewMarksSettings): Extension {
 		},
 		provide: (f) => EditorView.decorations.from(f),
 	});
-	return [annotationsField, focusTracking, Prec.highest(decorations)];
+	return [annotationsField, focusTracking, cellEditorTracking, Prec.highest(decorations)];
 }

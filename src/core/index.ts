@@ -5,6 +5,7 @@ export { parse, normalizeLineEndings } from './parse';
 export { applyChanges } from './changes';
 export { definitionText, excerpt, normalizeComment } from './definition';
 export { blockPrefixLength, isTableLine } from './sections';
+export { cellBorders, isDelimiterRow, tableCells, type CellRange } from './tables';
 export { planCreate, nextId, type CreatePlan, type CreateRequest } from './plan-create';
 export { planMoveComments, type MovePlan } from './plan-move';
 export { lineChanges } from './line-diff';
