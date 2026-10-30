@@ -94,3 +94,9 @@ body {
 	height: auto;
 	font-size: var(--font-ui-smaller);
 }
+
+/* ---------- Annotate on drag (src/drag) ---------- */
+
+.rm-drag-sel {
+	background-color: var(--text-selection);
+}
