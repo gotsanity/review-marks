@@ -14,3 +14,4 @@ export { planRemove, type RemovePlan } from './plan-remove';
 export { planEditComment, type EditCommentPlan, type EditCommentRequest } from './plan-edit-comment';
 export { backspaceAt, type BackspacePlan } from './backspace';
 export { annotationAt, adjacentAnnotation, type AnnotationAtCursor } from './navigate';
+export { outline, targetExcerpt, type Outline, type OutlineEntry, type OutlineGroup } from './outline';
