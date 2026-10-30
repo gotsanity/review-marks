@@ -12,6 +12,7 @@ import { registerRemoveAnnotation } from './commands/remove-annotation';
 import { closeActiveCommentBox } from './comment-box/comment-box';
 import { editorDrag } from './drag/editor-drag';
 import { addDragTriggerSetting } from './drag/setting';
+import { highlightSettings, registerHighlightColour } from './highlight';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
 import { livePreviewPopover } from './live-preview/popover';
@@ -65,6 +66,9 @@ export default class ReviewMarksPlugin extends Plugin {
 		this.settingsTab.addSection(SECTION_ORDER.drag, (el, store) => {
 			addDragTriggerSetting(el, store.current.dragTrigger, (dragTrigger) => store.update({ dragTrigger }));
 		});
+		const applyHighlight = registerHighlightColour(this, settings);
+		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
+		this.register(this.store.onChange(applyHighlight));
 		this.register(
 			this.store.onChange(() => {
 				refreshLivePreviews(this.app);

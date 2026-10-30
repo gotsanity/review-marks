@@ -1,10 +1,20 @@
 /* Review Marks styles. */
 
+/* The theme's highlight colour by default: Obsidian 1.14 renamed --text-highlight-bg to
+   --highlight-background. The "Highlight colour" setting overrides the first three on the body
+   (src/highlight.ts). */
 body {
-	--rm-highlight: rgba(255, 170, 60, 0.28);
-	--rm-highlight-revealed: rgba(255, 170, 60, 0.15);
-	--rm-accent: rgba(255, 140, 0, 0.8);
-	--rm-badge-background: rgba(220, 110, 0, 0.85);
+	--rm-theme-highlight: var(--highlight-background, var(--text-highlight-bg));
+	--rm-highlight: var(--rm-theme-highlight);
+	--rm-highlight-revealed: color-mix(in srgb, var(--rm-theme-highlight) 50%, transparent);
+	--rm-accent: var(--rm-theme-highlight);
+}
+
+/* Measures the theme's highlight colour for the settings tab's colour picker. */
+.rm-theme-probe {
+	position: fixed;
+	visibility: hidden;
+	background-color: var(--rm-theme-highlight);
 }
 
 /* ---------- Live Preview (src/live-preview) ---------- */
@@ -36,8 +46,9 @@ body {
 	font-style: normal;
 	line-height: 1.6;
 	vertical-align: 0.15em;
-	color: var(--text-on-accent);
-	background-color: var(--rm-badge-background);
+	color: var(--text-normal);
+	background-color: var(--rm-highlight);
+	border: 1px solid var(--rm-accent);
 	cursor: pointer;
 	white-space: nowrap;
 	user-select: none;
