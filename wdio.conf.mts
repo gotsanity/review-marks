@@ -81,6 +81,13 @@ export const config: WebdriverIO.Config = {
 	mochaOpts: {
 		ui: 'bdd',
 		timeout: 60 * 1000,
+		// Every test starts from the fixture vault with no notes open, the plugin settings as
+		// loaded and the window layout settled (see test/e2e/harness.ts). A root hook, so it runs
+		// before each spec's own beforeEach (wdio's beforeTest runs after it). Imported lazily, so
+		// CI can load this file to read the cache key without a browser.
+		rootHooks: {
+			beforeEach: async () => (await import('./test/e2e/harness.ts')).freshState(),
+		},
 	},
 	waitforInterval: 250,
 	waitforTimeout: 5 * 1000,
