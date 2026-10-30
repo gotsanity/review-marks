@@ -2,6 +2,7 @@
 import { Plugin } from 'obsidian';
 import { provisionalField } from './apply/provisional';
 import { registerAnnotateSelection } from './commands/annotate-selection';
+import { registerMoveComments } from './commands/move-comments';
 import { closeActiveCommentBox } from './comment-box/comment-box';
 import { livePreview } from './live-preview/live-preview';
 import { DEFAULT_SETTINGS, settingsFrom, type ReviewMarksSettings } from './settings';
@@ -15,6 +16,7 @@ export default class ReviewMarksPlugin extends Plugin {
 
 		this.registerEditorExtension([provisionalField, livePreview(settings)]);
 		registerAnnotateSelection(this, settings);
+		registerMoveComments(this);
 		this.register(closeActiveCommentBox);
 	}
 }
