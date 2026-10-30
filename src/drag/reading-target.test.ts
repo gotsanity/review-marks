@@ -59,11 +59,11 @@ describe('readingTarget', () => {
 	});
 
 	it('refuses a drag inside a code block', () => {
-		expect(target(3, 'x = 1')).toBe("refused: a Target can't start or end inside code.");
+		expect(target(3, 'x = 1')).toBe("refused: a Target can't start or end in code.");
 	});
 
 	it('refuses a drag that starts or ends inside inline code', () => {
-		expect(target(5, 'run now')).toBe("refused: a Target can't start or end inside code.");
+		expect(target(5, 'run now')).toBe("refused: a Target can't start or end in code.");
 	});
 
 	it('refuses a drag across table cells', () => {
@@ -71,7 +71,7 @@ describe('readingTarget', () => {
 		expect(target(4, 'rethfa')).toBe('refused: a Target must stay within one table cell.');
 	});
 
-	it('refuses a drag across blocks', () => {
+	it('maps a drag from a paragraph into a list item across both sections', () => {
 		const all = sections();
 		const range = document.createRange();
 		const p = all[1]?.el.querySelector('p')?.firstChild as Text;
@@ -79,7 +79,7 @@ describe('readingTarget', () => {
 		range.setStart(p, 5);
 		range.setEnd(li, 5);
 		const r = readingTarget(TEXT, all, range);
-		expect(r).toEqual({ message: 'a Target must stay within one paragraph.' });
+		expect('message' in r ? r.message : TEXT.slice(r.from, r.to)).toBe('**fails** the save and seizes.\n\n- First');
 	});
 
 	it('fails when the drag is not over the note text', () => {

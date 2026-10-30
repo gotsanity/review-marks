@@ -169,7 +169,7 @@ describe('Annotate on drag in Reading view', () => {
 		const { start, end } = await pointsIn('answer', '42');
 		await drag(Key.Alt, start, end);
 
-		await browser.waitUntil(async () => (await notices()).some((n) => n.includes("a Target can't start or end inside code.")));
+		await browser.waitUntil(async () => (await notices()).some((n) => n.includes("a Target can't start or end in code.")));
 		expect(await mode()).toBe('preview');
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await fileText()).toBe(TEXT);
