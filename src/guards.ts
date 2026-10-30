@@ -1,5 +1,6 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
 import type { Editor } from 'obsidian';
+import type { ChangeDesc, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 /**
@@ -21,4 +22,14 @@ export function keepScroll<T>(view: EditorView, fn: () => T): T {
 	const out = fn();
 	view.dispatch({ effects: snapshot });
 	return out;
+}
+
+/**
+ * An effect that keeps the current scroll position through `changes`, for the transaction that
+ * makes them, so edits above the viewport don't shift the note. Undefined without
+ * `scrollSnapshot` (@codemirror/view 6.22).
+ */
+export function scrollSnapshotThrough(view: EditorView, changes: ChangeDesc): StateEffect<unknown> | undefined {
+	if (typeof view.scrollSnapshot !== 'function') return undefined;
+	return view.scrollSnapshot().map(changes);
 }

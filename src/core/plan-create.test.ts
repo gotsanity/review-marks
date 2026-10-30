@@ -88,6 +88,27 @@ describe('planCreate: end of note', () => {
 	});
 });
 
+describe('planCreate: reading order', () => {
+	it('puts the definition before those of later markers in its section', () => {
+		const text = '# One\n\nAlpha {beta}[^r1] gamma {delta}[^r2].\n\n[^r1]: B.\n[^r2]: D.\n\n# Two\n';
+		expect(annotate(text, 'gamma', 'G.')).toBe(
+			'# One\n\nAlpha {beta}[^r1] {gamma}[^r3] {delta}[^r2].\n\n[^r1]: B.\n[^r3]: G.\n[^r2]: D.\n\n# Two\n',
+		);
+	});
+
+	it('puts the definition first when its marker comes first', () => {
+		const text = 'Alpha {beta}[^r1].\n\n[^r1]: B.\n';
+		expect(annotate(text, 'Alpha', 'A.')).toBe('{Alpha}[^r2] {beta}[^r1].\n\n[^r2]: A.\n[^r1]: B.\n');
+	});
+
+	it('puts the definition before those of later markers at the end of the note', () => {
+		const text = '# One\n\nAlpha.\n\n# Two\n\n{Gamma}[^r1].\n\n[^r1]: G.\n';
+		expect(annotate(text, 'Alpha', 'A.', 'end-of-note')).toBe(
+			'# One\n\n{Alpha}[^r2].\n\n# Two\n\n{Gamma}[^r1].\n\n[^r2]: A.\n[^r1]: G.\n',
+		);
+	});
+});
+
 describe('planCreate: Comments and IDs', () => {
 	it('indents further lines of a multi-line Comment by 4 spaces, leaving blank lines empty', () => {
 		expect(annotate('Alpha beta.\n', 'beta', 'Line one.\nLine two.\n\nLine four.')).toBe(

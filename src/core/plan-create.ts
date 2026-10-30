@@ -106,20 +106,32 @@ const isWhitespace = (c: string | undefined) => c !== undefined && /\s/.test(c);
 /** Where the new definition goes, as one insert. `targetEnd` is where the Target ends. */
 function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement: Placement, def: string): Change {
 	const { text } = doc;
-	const reviewDefEnds = new Set(
-		[...doc.annotations.flatMap((a) => (a.definition ? [a.definition] : [])), ...doc.orphanDefinitions].map((d) => d.to),
-	);
+	const reviewDefs = [...doc.annotations.flatMap((a) => (a.definition ? [a.definition] : [])), ...doc.orphanDefinitions];
+	const reviewDefEnds = new Set(reviewDefs.map((d) => d.to));
 
-	if (placement === 'end-of-note' && reviewDefEnds.size > 0) {
-		const at = Math.max(...reviewDefEnds);
-		return { from: at, to: at, insert: '\n' + def };
-	}
+	/** Joins the list of review definitions ending at `end`, before the first one whose marker comes later. */
+	const joinList = (end: number): Change => {
+		const byEnd = new Map(reviewDefs.map((d) => [d.to, d]));
+		const markerOf = new Map(doc.annotations.map((a) => [a.definition, a.close]));
+		let before: number | null = null;
+		for (let d = byEnd.get(end); d; d = byEnd.get(d.from - 1)) {
+			const close = markerOf.get(d);
+			if (close !== undefined && close > targetEnd) before = d.from;
+		}
+		return before === null ? { from: end, to: end, insert: '\n' + def } : { from: before, to: before, insert: def + '\n' };
+	};
+
+	if (placement === 'end-of-note' && reviewDefEnds.size > 0) return joinList(Math.max(...reviewDefEnds));
 
 	const sectionEnd =
 		placement === 'end-of-section' ? (headingStarts(text).find((h) => h > targetEnd) ?? text.length) : text.length;
 	let at = sectionEnd;
 	while (at > targetEnd && isWhitespace(text[at - 1])) at--;
 
+	if (reviewDefEnds.has(at)) {
+		const joined = joinList(at);
+		if (joined.from !== at) return joined;
+	}
 	let insert = (reviewDefEnds.has(at) ? '\n' : '\n\n') + def;
 	if (sectionEnd < text.length) {
 		const gapNewlines = text.slice(at, sectionEnd).split('\n').length - 1;
@@ -130,8 +142,9 @@ function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement: Place
 
 /**
  * Plans a new Annotation over a selection: `{` before the Target, `}[^rN]` after it, and the
- * definition at the end of the Target's section (before the next heading of any level, after any
- * review definitions already there) or at the end of the note. The new ID is the highest + 1.
+ * definition at the end of the Target's section (before the next heading of any level, among any
+ * review definitions already there in the reading order of their markers) or at the end of the note.
+ * The new ID is the highest + 1.
  */
 export function planCreate(doc: AnnotationDoc, req: CreateRequest): CreatePlan | Refusal {
 	const { text } = doc;

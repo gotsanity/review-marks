@@ -2,7 +2,7 @@ import type { Placement } from './core';
 import { DEFAULT_DRAG_TRIGGER, isDragTrigger, type DragTrigger } from './drag/trigger';
 
 export interface ReviewMarksSettings {
-	/** Where the Comment of a new Annotation is written. Its setting arrives with ticket #27. */
+	/** Where the Comment of a new Annotation is written. Its control is `addPlacementSetting`. */
 	placement: Placement;
 	/** How many characters of the Comment the badge shows. */
 	excerptLength: number;
