@@ -24,14 +24,14 @@ export const displaySettings: SettingsSection = (containerEl, store) => {
 
 	new Setting(containerEl)
 		.setName('Show comment on hover')
-		.setDesc('Hovering an annotation shows its full comment. On mobile, tap the annotation instead. Clicking the badge always shows it.')
+		.setDesc('Hovering an annotation shows its full comment. Clicking the badge, or tapping an annotation on mobile, always shows it.')
 		.addToggle((toggle) =>
 			toggle.setValue(store.current.showHover).onChange((value) => store.update({ showHover: value })),
 		);
 
 	new Setting(containerEl)
 		.setName('Hide review footnotes in the footnote list')
-		.setDesc('In reading view, the footnote list at the end of the note leaves out review comments. Your own footnotes and their numbers stay.')
+		.setDesc('Reading view leaves review comments out of the footnote list at the end of the note. Your own footnotes and their numbers stay.')
 		.addToggle((toggle) =>
 			toggle
 				.setValue(store.current.hideReviewFootnotes)

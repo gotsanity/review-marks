@@ -147,4 +147,13 @@ describe('Mobile', () => {
 		await $('.markdown-preview-view .rm-badge[data-rm-id="r1"]').click();
 		await expect($('.rm-popover')).toHaveText(expect.stringContaining('One.'));
 	});
+
+	it('a tap on a Target opens the popover even with hover off: a tap is not a hover', async () => {
+		await browser.executeObsidian(({ plugins }) => (plugins.reviewMarks as unknown as { store: { update(p: object): Promise<void> } }).store.update({ showHover: false }));
+		await browser.keys('Escape');
+		await expect($('.rm-popover')).not.toExist();
+		await open(TEXT, 'preview');
+		await $('.markdown-preview-view .rm-target[data-rm-id="r1"]').click();
+		await expect($('.rm-popover')).toHaveText(expect.stringContaining('One.'));
+	});
 });

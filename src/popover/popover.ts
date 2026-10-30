@@ -1,6 +1,5 @@
 // The comment popover: the full Comment, rendered as Markdown, next to a Target or badge. It opens
-// on hover (desktop, with the hover setting on), on tap (mobile, same setting), and always on a
-// badge click. A click opens it pinned: it stays until a click outside, Escape or a second click.
+// on hover (desktop, with the hover setting on), and always on a tap (mobile) or a badge click. A click opens it pinned: it stays until a click outside, Escape or a second click.
 import { Component, Keymap, MarkdownRenderer, Platform, type App } from 'obsidian';
 import type { ReviewMarksSettings } from '../settings';
 
@@ -112,7 +111,8 @@ export class CommentPopover {
 
 	/** A click or tap. Returns true when it opened or closed the popover. */
 	click(anchor: HTMLElement, ref: CommentRef, isBadge: boolean): boolean {
-		if (!isBadge && !(Platform.isMobile && this.settings().showHover)) return false;
+		// On mobile a tap on a Target opens it whatever the hover setting: a tap is not a hover.
+		if (!isBadge && !Platform.isMobile) return false;
 		if (this.pinned && this.key === keyOf(ref)) this.close();
 		else this.open(anchor, ref, true);
 		return true;
