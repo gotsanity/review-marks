@@ -1,3 +1,4 @@
+import { boundaryInside, isExcalidraw, notMarkupMask, syntaxRanges, type SyntaxKind } from './collisions';
 import { codeMask } from './code';
 import { definitionText } from './definition';
 import { blockPrefixLength, headingStarts, isTableLine } from './sections';
@@ -35,10 +36,11 @@ function lineAt(text: string, at: number): string {
 	return text.slice(start, end < 0 ? text.length : end);
 }
 
-/** The highest `rN` used anywhere in the note, plus one. */
+/** The highest `rN` used in the note outside code and Templater tags, plus one. */
 export function nextId(text: string): string {
+	const skip = notMarkupMask(text);
 	let max = 0;
-	for (const m of text.matchAll(ANY_REVIEW_LABEL)) max = Math.max(max, Number(m[1]));
+	for (const m of text.matchAll(ANY_REVIEW_LABEL)) if (!skip[m.index]) max = Math.max(max, Number(m[1]));
 	return `r${max + 1}`;
 }
 
@@ -64,6 +66,15 @@ function adjustSelection(text: string, from: number, to: number): { from: number
 	return { from: f, to: Math.max(f, t) };
 }
 
+/** The refusal for an end inside each kind of syntax, checked in this order. */
+const SYNTAX_REFUSALS: Record<SyntaxKind, [Refusal['refusal'], string]> = {
+	math: ['in-math', 'math'],
+	template: ['in-template', 'a template tag'],
+	dataview: ['in-dataview-field', 'a Dataview field'],
+	link: ['in-link', 'a link'],
+	html: ['in-html', 'an HTML tag'],
+};
+
 /** Why `[f, t)` can't be a Target, or null if it can. */
 function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	const { text } = doc;
@@ -75,6 +86,13 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	const insideSpan = (at: number) => inCode[at - 1] === 1 && inCode[at] === 1;
 	if (onCodeLine(f) || onCodeLine(t - 1) || insideSpan(f) || insideSpan(t)) {
 		return refuse('in-code', "a Target can't start or end in code.");
+	}
+	const ranges = syntaxRanges(text);
+	for (const kind of Object.keys(SYNTAX_REFUSALS) as SyntaxKind[]) {
+		if (ranges.some((r) => r.kind === kind && (boundaryInside(r, f) || boundaryInside(r, t)))) {
+			const [reason, what] = SYNTAX_REFUSALS[kind];
+			return refuse(reason, `a Target can't start or end inside ${what}.`);
+		}
 	}
 	if (span.includes('\n')) {
 		for (let at = lineStartOf(text, f); at < t; at = text.indexOf('\n', at) + 1 || t) {
@@ -101,10 +119,11 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 		if (startsInside !== endsInside) return refuse('overlaps-annotation', `the selection overlaps annotation [^${a.id}].`);
 	}
 
+	const notMarkup = notMarkupMask(text);
 	let depth = 0;
 	for (let i = f; i < t; i++) {
 		const c = text[i];
-		if (inCode[i]) continue;
+		if (notMarkup[i]) continue;
 		if (c === '\\') i++;
 		else if (c === '{') depth++;
 		else if (c === '}' && --depth < 0) break;
@@ -166,6 +185,7 @@ export function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement
  */
 export function planCreate(doc: AnnotationDoc, req: CreateRequest): CreatePlan | Refusal {
 	const { text } = doc;
+	if (isExcalidraw(text)) return refuse('excalidraw', 'annotations are off in Excalidraw drawings.');
 	const target = adjustSelection(text, req.from, req.to);
 	const refusal = checkTarget(doc, target.from, target.to);
 	if (refusal) return refusal;

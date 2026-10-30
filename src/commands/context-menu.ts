@@ -2,6 +2,7 @@
 // selected; "Edit comment" and "Remove annotation" when the cursor is on an Annotation.
 import type { Plugin } from 'obsidian';
 import type { ReviewMarksSettings } from '../settings';
+import { annotatable } from './annotatable';
 import { annotateSelection } from './annotate-selection';
 import { editComment } from './edit-comment';
 import { annotationIdAtCursor, removeAnnotation } from './remove-annotation';
@@ -9,6 +10,7 @@ import { annotationIdAtCursor, removeAnnotation } from './remove-annotation';
 export function registerContextMenu(plugin: Plugin, settings: () => ReviewMarksSettings): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on('editor-menu', (menu, editor) => {
+			if (!annotatable(editor)) return;
 			if (editor.somethingSelected()) {
 				menu.addItem((item) =>
 					item

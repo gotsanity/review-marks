@@ -54,7 +54,14 @@ export type RefusalReason =
 	| 'overlaps-annotation'
 	| 'unbalanced-braces'
 	| 'not-found'
-	| 'empty-comment';
+	| 'empty-comment'
+	| 'in-math'
+	| 'in-template'
+	| 'in-dataview-field'
+	| 'in-link'
+	| 'in-html'
+	| 'excalidraw'
+	| 'no-duplicate-ids';
 
 /** Where the definition of a new Annotation goes. */
 export type Placement = 'end-of-section' | 'end-of-note';

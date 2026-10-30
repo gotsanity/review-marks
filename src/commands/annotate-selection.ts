@@ -7,6 +7,7 @@ import { cancelProvisional, commitProvisional, startProvisional } from '../apply
 import { openCommentBox } from '../comment-box/comment-box';
 import { editorViewOf, keepScroll } from '../guards';
 import type { ReviewMarksSettings } from '../settings';
+import { whenAnnotatable } from './annotatable';
 
 function showRefusal(refusal: Refusal): void {
 	new Notice(`Review Marks: ${refusal.message}`);
@@ -64,6 +65,6 @@ export function registerAnnotateSelection(plugin: Plugin, settings: () => Review
 	plugin.addCommand({
 		id: 'annotate-selection',
 		name: 'Annotate selection',
-		editorCallback: (editor) => annotateSelection(editor, settings()),
+		editorCheckCallback: whenAnnotatable((editor) => annotateSelection(editor, settings())),
 	});
 }

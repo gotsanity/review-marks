@@ -5,6 +5,7 @@ import { ChangeSet } from '@codemirror/state';
 import { Notice, type Editor, type Plugin } from 'obsidian';
 import { parse, planMoveComments, type MovePlan, type Placement } from '../core';
 import { editorViewOf, scrollSnapshotThrough } from '../guards';
+import { whenAnnotatable } from './annotatable';
 
 const WHERE: Record<Placement, string> = {
 	'end-of-note': 'the end of the note',
@@ -62,11 +63,11 @@ export function registerMoveComments(plugin: Plugin): void {
 	plugin.addCommand({
 		id: 'move-comments-to-end-of-note',
 		name: 'Move comments to end of note',
-		editorCallback: (editor) => void moveComments(editor, 'end-of-note'),
+		editorCheckCallback: whenAnnotatable((editor) => void moveComments(editor, 'end-of-note')),
 	});
 	plugin.addCommand({
 		id: 'move-comments-to-end-of-sections',
 		name: 'Move comments to end of sections',
-		editorCallback: (editor) => void moveComments(editor, 'end-of-section'),
+		editorCheckCallback: whenAnnotatable((editor) => void moveComments(editor, 'end-of-section')),
 	});
 }

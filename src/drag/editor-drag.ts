@@ -7,6 +7,7 @@
 import { StateEffect, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet } from '@codemirror/view';
 import { annotateRange } from '../commands/annotate-selection';
+import { isExcalidraw } from '../core';
 import type { ReviewMarksSettings } from '../settings';
 import { triggerHeld } from './trigger';
 
@@ -61,6 +62,8 @@ class DragHandler {
 		const { view } = this;
 		if (this.end || e.button !== 0 || e.pointerType === 'touch') return;
 		if (!triggerHeld(e, this.settings().dragTrigger, this.isMac)) return;
+		// Excalidraw drawings are left alone: the editor keeps the gesture.
+		if (isExcalidraw(view.state.doc.toString())) return;
 		const target = e.target as Node | null;
 		if (!target || !view.contentDOM.contains(target)) return;
 		const el = target.nodeType === Node.ELEMENT_NODE ? (target as Element) : target.parentElement;

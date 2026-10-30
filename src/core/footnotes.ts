@@ -1,4 +1,5 @@
 // Footnotes as Reading view sees them: every footnote, the author's and the review ones.
+import { isExcalidraw } from './collisions';
 
 const REVIEW_LABEL = /^r\d+$/;
 const DEFINITION = /^\[\^([^\]\s]+)\]:/gm;
@@ -25,10 +26,11 @@ export function footnoteOrder(text: string): string[] {
 
 /**
  * The footnote label of each item in Reading view's footnote list of `itemCount` items, or null
- * when the count disagrees with the note. Callers then leave the list alone: showing a review
+ * when the count disagrees with the note or the note is an Excalidraw drawing. Callers then leave the list alone: showing a review
  * footnote is harmless, hiding an author's one is not.
  */
 export function footnoteListLabels(text: string, itemCount: number): string[] | null {
+	if (isExcalidraw(text)) return null;
 	const order = footnoteOrder(text);
 	return order.length === itemCount ? order : null;
 }

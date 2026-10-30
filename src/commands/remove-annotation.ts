@@ -5,6 +5,7 @@ import { notify } from '../notice';
 import { annotationAt, isRefusal, parse, planRemove } from '../core';
 import { EditorChangeTarget } from '../apply/editor-target';
 import { editorViewOf } from '../guards';
+import { whenAnnotatable } from './annotatable';
 
 /** Removes the Annotation with this ID from the note in the editor. */
 export async function removeAnnotation(editor: Editor, id: string): Promise<void> {
@@ -29,10 +30,10 @@ export function registerRemoveAnnotation(plugin: Plugin): void {
 	plugin.addCommand({
 		id: 'remove-annotation-at-cursor',
 		name: 'Remove annotation at cursor',
-		editorCallback: (editor) => {
+		editorCheckCallback: whenAnnotatable((editor) => {
 			const id = annotationIdAtCursor(editor);
 			if (id) void removeAnnotation(editor, id);
 			else notify('there is no annotation at the cursor.');
-		},
+		}),
 	});
 }
