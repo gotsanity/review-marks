@@ -113,9 +113,14 @@ export function scrollSnapshotThrough(view: EditorView, changes: ChangeDesc): St
  * Scrolls Reading view to a source line (0-based) and, once the Target with this ID is rendered,
  * centres and flashes it. `applyScroll` is public but its unit (a source line) is undocumented,
  * so the decorated Target's `scrollIntoView` does the real positioning when it can be found.
+ *
+ * Reading view ignores `applyScroll` while it is still rendering a note it has just opened or
+ * switched to, and it renders a far Target only once it is scrolled near it. So the scroll is
+ * asked for again on every frame until the Target shows up, for about two seconds.
  */
 export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: string): void {
-	preview.applyScroll(Math.max(0, line - 2));
+	const top = Math.max(0, line - 2);
+	preview.applyScroll(top);
 	const win = preview.containerEl.win;
 	let tries = 0;
 	const find = () => {
@@ -125,7 +130,9 @@ export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: 
 			flash(el);
 			return;
 		}
-		if (++tries < 10) win.requestAnimationFrame(find);
+		if (++tries >= 120) return;
+		preview.applyScroll(top);
+		win.requestAnimationFrame(find);
 	};
 	win.requestAnimationFrame(find);
 }

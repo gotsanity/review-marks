@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
-import { caretFromPoint, isExportRender, tableWidgetCells } from './guards';
+import type { MarkdownPreviewView } from 'obsidian';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { caretFromPoint, isExportRender, scrollPreviewTo, tableWidgetCells } from './guards';
 import { block } from './test-support/fake-dom';
 
 const TEXT = 'Intro.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | {17 (fail)}[^r9] |\n';
@@ -98,5 +99,64 @@ describe('isExportRender', () => {
 	it('is false when the render has section info', () => {
 		const withInfo = { getSectionInfo: () => ({}), displayMode: true };
 		expect(isExportRender(block('<p>x</p>'), withInfo)).toBe(false);
+	});
+});
+
+/**
+ * Reading view for a long note whose Target (r1) is rendered only once the view has scrolled
+ * near it. It ignores `applyScroll` for its first `busyFrames` frames, as Obsidian does while it is
+ * still rendering a note it has just switched to. `frame()` runs one animation frame.
+ */
+function readingView(busyFrames: number) {
+	const containerEl = block('<p>Paragraph 0 of filler text.</p>');
+	const queued: FrameRequestCallback[] = [];
+	vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => queued.push(cb));
+	let frames = 0;
+	let scroll = 0;
+	const centred: unknown[] = [];
+	const preview = {
+		containerEl,
+		getScroll: () => scroll,
+		applyScroll: (line: number) => {
+			if (frames >= busyFrames) scroll = line;
+		},
+	};
+	const target = () => containerEl.querySelector<HTMLElement>('.rm-target[data-rm-id="r1"]');
+	return {
+		preview: preview as unknown as MarkdownPreviewView,
+		target,
+		/** The options of each `scrollIntoView` call on the Target. */
+		centred,
+		frame() {
+			frames++;
+			if (scroll >= 150 && !target()) {
+				const el = containerEl.createSpan({ cls: 'rm-target', text: 'far target' });
+				el.dataset.rmId = 'r1';
+				el.scrollIntoView = (options) => centred.push(options);
+			}
+			for (const cb of queued.splice(0)) cb(0);
+		},
+	};
+}
+
+describe('scrollPreviewTo', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('scrolls to the Target and flashes it', () => {
+		const view = readingView(0);
+		scrollPreviewTo(view.preview, 162, 'r1');
+		for (let i = 0; i < 3; i++) view.frame();
+		expect(view.centred).toEqual([{ block: 'center' }]);
+		expect(view.target()?.classList.contains('rm-flash')).toBe(true);
+	});
+
+	it('still gets there when Reading view is busy rendering at first', () => {
+		const view = readingView(20);
+		scrollPreviewTo(view.preview, 162, 'r1');
+		for (let i = 0; i < 30; i++) view.frame();
+		expect(view.centred).toEqual([{ block: 'center' }]);
+		expect(view.target()?.classList.contains('rm-flash')).toBe(true);
 	});
 });
