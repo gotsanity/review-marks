@@ -1,0 +1,93 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  # Don't install the local git hook on runners.
+  HUSKY: 0
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      # Manifest mode: reads release-please-config.json and .release-please-manifest.json.
+      # Don't set release-type here; that switches manifest mode off.
+      - uses: googleapis/release-please-action@v5
+        id: release
+
+  # Add "<version>": "<minAppVersion>" to versions.json on the open release PR.
+  sync-versions-json:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.pr != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node version-bump.mjs
+      - name: Commit versions.json
+        run: |
+          if git diff --quiet -- versions.json; then
+            echo "versions.json already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add versions.json
+          git commit -m "chore: update versions.json"
+          git push
+
+  # When the release PR merges: build, attest, attach assets.
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Check manifest version matches tag
+        run: test "$(node -p "require('./manifest.json').version")" = "$TAG"
+      # Attestations need a public repo on Free/Pro/Team plans. Skipped while
+      # the repo is private; runs automatically once it goes public.
+      - name: Generate artifact attestation
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" main.js manifest.json styles.css --clobber
