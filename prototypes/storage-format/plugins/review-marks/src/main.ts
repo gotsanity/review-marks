@@ -8,6 +8,8 @@
 //   src/commands.ts        commands, createAnnotation(), writeComment()
 //   src/convert.ts         Move comments to end of note / end of sections
 //   src/sidebar.ts         annotations sidebar (ItemView), unwrapAnnotation()
+//   src/comment-box.ts     inline comment box (replaces the modal)
+//   src/drag.ts            annotate-on-drag gesture; src/dom-map.ts maps rendered selections to source
 // No tests, minimal error handling.
 import { Plugin } from 'obsidian';
 import { ReviewMarksSettingTab, loadSettings, onSettingsChange } from './settings';
@@ -17,6 +19,8 @@ import { registerReading, rerenderPreviews } from './render-reading';
 import { createAnnotation, registerCommands, writeComment } from './commands';
 import { registerConvertCommands } from './convert';
 import { registerSidebar, unwrapAnnotation } from './sidebar';
+import { commentBoxExtension } from './comment-box';
+import { registerDrag } from './drag';
 
 export { createAnnotation, writeComment } from './commands';
 
@@ -32,6 +36,8 @@ export default class ReviewMarksPlugin extends Plugin {
     registerCommands(this);
     registerConvertCommands(this);
     registerSidebar(this);
+    this.registerEditorExtension(commentBoxExtension);
+    registerDrag(this);
     this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
     onSettingsChange(() => { refreshLivePreview(this.app); rerenderPreviews(this); });
     this.registerDomEvent(document, 'click', (e) => {

@@ -4,7 +4,7 @@
 import { App, Editor, EditorPosition, Notice, Plugin, TFile } from 'obsidian';
 import { Annotation, analyze, blockPrefixLength, defText, isTableLine, nextId, normalize, planDefinition } from './parse';
 import { settings } from './settings';
-import { CommentModal } from './ui';
+import { annotateWithBox, editWithBox } from './comment-box';
 
 let app: App;
 
@@ -17,7 +17,7 @@ export function registerCommands(plugin: Plugin) {
       const from = editor.getCursor('from'), to = editor.getCursor('to');
       const err = checkTarget(editor.getValue(), editor.posToOffset(from), editor.posToOffset(to));
       if (typeof err === 'string') { new Notice('Review Marks: ' + err); return; }
-      new CommentModal(app, 'New comment', '', (comment) => { createAnnotation(editor, from, to, comment); }).open();
+      annotateWithBox(editor, from, to, true);
     },
   });
   plugin.addCommand({
@@ -26,7 +26,7 @@ export function registerCommands(plugin: Plugin) {
     editorCallback: (editor) => {
       const a = annotationAt(editor.getValue(), editor.posToOffset(editor.getCursor('head')));
       if (!a) { new Notice('Review Marks: no annotation at the cursor.'); return; }
-      new CommentModal(app, `Edit comment [^${a.id}]`, a.comment, (comment) => { void writeComment(editor, a.id, comment); }).open();
+      editWithBox(editor, a.id, true);
     },
   });
 }

@@ -25,16 +25,28 @@ __export(main_exports, {
   writeComment: () => writeComment
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian8 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
+var DRAG_TRIGGERS = {
+  off: "Off",
+  alt: "Alt",
+  mod: "Ctrl (Cmd on macOS)",
+  shift: "Shift",
+  meta: "Meta (Windows key, Cmd on macOS)",
+  "mod-alt": "Ctrl+Alt",
+  "mod-shift": "Ctrl+Shift",
+  "alt-shift": "Alt+Shift",
+  "mod-alt-shift": "Ctrl+Alt+Shift"
+};
 var DEFAULT_SETTINGS = {
   placement: "end-of-section",
   showBadge: true,
   excerptLength: 32,
   showHover: true,
-  hideReviewFootnotes: true
+  hideReviewFootnotes: true,
+  dragTrigger: "alt"
 };
 var settings = { ...DEFAULT_SETTINGS };
 var settingsVersion = 0;
@@ -51,8 +63,8 @@ async function saveSettings(plugin) {
   for (const cb of listeners) cb();
 }
 var ReviewMarksSettingTab = class extends import_obsidian.PluginSettingTab {
-  constructor(app4, plugin) {
-    super(app4, plugin);
+  constructor(app5, plugin) {
+    super(app5, plugin);
     this.plugin = plugin;
   }
   display() {
@@ -81,6 +93,13 @@ var ReviewMarksSettingTab = class extends import_obsidian.PluginSettingTab {
       settings.hideReviewFootnotes = v;
       await saveSettings(this.plugin);
     }));
+    new import_obsidian.Setting(containerEl).setName("Annotate-on-drag trigger").setDesc("Hold these keys while you drag-select text to annotate it at once. Works in Live Preview, Source mode and Reading view (which switches to Live Preview). The editor's own behaviour for this combination is turned off while the setting is on.").addDropdown((d) => {
+      for (const [k, label] of Object.entries(DRAG_TRIGGERS)) d.addOption(k, label);
+      d.setValue(settings.dragTrigger).onChange(async (v) => {
+        settings.dragTrigger = v;
+        await saveSettings(this.plugin);
+      });
+    });
   }
 };
 
@@ -183,15 +202,15 @@ function parse(text) {
       continue;
     }
     if (c !== "}") continue;
-    const open = stack.pop();
+    const open2 = stack.pop();
     marker.lastIndex = i;
     const m = marker.exec(text);
-    if (!m || open === void 0 || seen.has(m[1])) continue;
+    if (!m || open2 === void 0 || seen.has(m[1])) continue;
     seen.add(m[1]);
     const d = defs.get(m[1]);
     out.push({
       id: m[1],
-      open,
+      open: open2,
       close: i,
       refEnd: i + m[0].length,
       defFrom: d ? d.from : -1,
@@ -376,40 +395,6 @@ function makeBadge(a, sourcePath2) {
   wireTarget(el, a, sourcePath2, true);
   return el;
 }
-var CommentModal = class extends import_obsidian2.Modal {
-  constructor(app4, heading, initial, onSubmit) {
-    super(app4);
-    this.heading = heading;
-    this.initial = initial;
-    this.onSubmit = onSubmit;
-  }
-  onOpen() {
-    this.titleEl.setText(this.heading);
-    const ta = this.contentEl.createEl("textarea", { cls: "rm-textarea" });
-    ta.value = this.initial;
-    this.contentEl.createDiv({ cls: "rm-hint", text: "Enter for a new line, Ctrl/Cmd+Enter to save." });
-    const submit = () => {
-      const v = ta.value.replace(/\s+$/, "").replace(/^\s*\n/, "");
-      if (!v.trim()) {
-        new import_obsidian2.Notice("Review Marks: the comment is empty.");
-        return;
-      }
-      this.close();
-      this.onSubmit(v);
-    };
-    ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        submit();
-      }
-    });
-    this.contentEl.createEl("button", { text: "Save", cls: "mod-cta" }).addEventListener("click", submit);
-    window.setTimeout(() => ta.focus(), 0);
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
 
 // src/render-live.ts
 var import_obsidian3 = require("obsidian");
@@ -712,8 +697,8 @@ function scanTables(view) {
   });
 }
 var livePreviewExtension = [annotationsField, focusField, focusTracker, import_state.Prec.highest(decoField), hover, tableScan];
-function refreshLivePreview(app4) {
-  for (const leaf of app4.workspace.getLeavesOfType("markdown")) {
+function refreshLivePreview(app5) {
+  for (const leaf of app5.workspace.getLeavesOfType("markdown")) {
     const v = leaf.view;
     if (!(v instanceof import_obsidian3.MarkdownView)) continue;
     const cm = v.editor.cm;
@@ -807,7 +792,196 @@ async function postProcess(plugin, el, ctx) {
 }
 
 // src/commands.ts
+var import_obsidian6 = require("obsidian");
+
+// src/comment-box.ts
 var import_obsidian5 = require("obsidian");
+var import_state2 = require("@codemirror/state");
+var import_view2 = require("@codemirror/view");
+var cmOf = (editor) => editor.cm;
+var captures = /* @__PURE__ */ new Set();
+var commentBoxExtension = import_view2.ViewPlugin.define(() => ({
+  update(u) {
+    if (!u.docChanged) return;
+    for (const c of captures) {
+      if (c.view !== u.view) continue;
+      if (c.recording) {
+        c.created = c.created ? c.created.compose(u.changes) : u.changes;
+        if (!c.startDoc) c.startDoc = u.startState.doc;
+      } else c.later = c.later ? c.later.compose(u.changes) : u.changes;
+    }
+  }
+}));
+function keepScroll(cm, f) {
+  if (!cm) return f();
+  const snap = cm.scrollSnapshot();
+  const out = f();
+  cm.dispatch({ effects: snap });
+  return out;
+}
+var active = null;
+function commitActiveBox() {
+  if (active) finish(active, "away");
+}
+function annotateWithBox(editor, from, to, refocus) {
+  commitActiveBox();
+  const cm = cmOf(editor);
+  const cap = cm ? { view: cm, created: null, startDoc: null, later: null, recording: true } : null;
+  if (cap) captures.add(cap);
+  const id = keepScroll(cm, () => createAnnotation(editor, from, to, ""));
+  if (cap) cap.recording = false;
+  if (!id) {
+    if (cap) captures.delete(cap);
+    return null;
+  }
+  open(editor, id, "", true, refocus, cap);
+  return id;
+}
+function editWithBox(editor, id, refocus) {
+  var _a;
+  commitActiveBox();
+  const a = analyze(editor.getValue()).anns.find((x) => x.id === id);
+  open(editor, id, (_a = a == null ? void 0 : a.comment) != null ? _a : "", false, refocus, null);
+}
+function open(editor, id, initial, isNew, refocus, cap) {
+  var _a, _b;
+  const el = document.body.createDiv({ cls: "rm-cbox" + (import_obsidian5.Platform.isMobile ? " is-mobile" : "") });
+  el.createDiv({ cls: "rm-cbox-head", text: `Comment [^${id}]` });
+  const ta = el.createEl("textarea", { cls: "rm-cbox-input", attr: { rows: "1", placeholder: "Write a comment\u2026", spellcheck: "true" } });
+  ta.value = initial;
+  const foot = el.createDiv({ cls: "rm-cbox-foot" });
+  foot.createSpan({ cls: "rm-cbox-hint", text: "Enter saves \xB7 Shift+Enter new line \xB7 Esc cancels" });
+  const cancelBtn = foot.createEl("button", { cls: "rm-cbox-btn", text: "Cancel" });
+  const saveBtn = foot.createEl("button", { cls: "rm-cbox-btn mod-cta", text: "Save" });
+  hidePopover(true);
+  document.body.addClass("rm-cbox-open");
+  const b = { el, ta, editor, cm: cmOf(editor), id, initial, isNew, refocus, cap, off: [] };
+  active = b;
+  ta.addEventListener("keydown", (e) => {
+    if (e.isComposing) return;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(b, "save");
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(b, "cancel");
+    }
+  });
+  ta.addEventListener("input", () => {
+    grow(ta);
+    place2(b);
+  });
+  cancelBtn.addEventListener("click", () => finish(b, "cancel"));
+  saveBtn.addEventListener("click", () => finish(b, "save"));
+  const away = (e) => {
+    if (active === b && !el.contains(e.target)) finish(b, "away");
+  };
+  const reposition = () => place2(b);
+  document.addEventListener("pointerdown", away, true);
+  document.addEventListener("scroll", reposition, true);
+  window.addEventListener("resize", reposition);
+  (_a = window.visualViewport) == null ? void 0 : _a.addEventListener("resize", reposition);
+  (_b = window.visualViewport) == null ? void 0 : _b.addEventListener("scroll", reposition);
+  b.off.push(() => {
+    var _a2, _b2;
+    document.removeEventListener("pointerdown", away, true);
+    document.removeEventListener("scroll", reposition, true);
+    window.removeEventListener("resize", reposition);
+    (_a2 = window.visualViewport) == null ? void 0 : _a2.removeEventListener("resize", reposition);
+    (_b2 = window.visualViewport) == null ? void 0 : _b2.removeEventListener("scroll", reposition);
+  });
+  grow(ta);
+  place2(b);
+  ta.focus({ preventScroll: true });
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  let n = 0;
+  const settle = () => {
+    if (active !== b) return;
+    place2(b);
+    if (++n < 3) window.requestAnimationFrame(settle);
+  };
+  window.requestAnimationFrame(settle);
+}
+function grow(ta) {
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight + 2, 220) + "px";
+}
+function finish(b, how) {
+  if (active !== b) return;
+  active = null;
+  for (const f of b.off) f();
+  b.el.remove();
+  document.body.removeClass("rm-cbox-open");
+  const v = b.ta.value.replace(/\s+$/, "").replace(/^\s*\n/, "");
+  const alive = !b.cm || b.cm.dom.isConnected;
+  if (alive) {
+    if (how === "cancel" || !v.trim()) {
+      if (b.isNew) removeNew(b);
+    } else if (b.isNew || v !== b.initial) keepScroll(b.cm, () => void writeComment(b.editor, b.id, v));
+  }
+  if (b.cap) captures.delete(b.cap);
+  if (alive && b.refocus) b.cm ? b.cm.focus() : b.editor.focus();
+}
+function removeNew(b) {
+  const cap = b.cap;
+  if (cap && cap.created && cap.startDoc) {
+    let inv = cap.created.invert(cap.startDoc);
+    if (cap.later) inv = inv.map(cap.later);
+    cap.view.dispatch({ changes: inv, annotations: import_state2.Transaction.addToHistory.of(false) });
+    return;
+  }
+  b.editor.undo();
+}
+function anchorRect(b) {
+  const cm = b.cm;
+  if (!cm) return null;
+  const rects = [];
+  cm.dom.querySelectorAll(`.rm-target[data-rm-id="${b.id}"]`).forEach((e2) => {
+    for (const r of Array.from(e2.getClientRects())) if (r.width || r.height) rects.push(r);
+  });
+  if (rects.length) {
+    const top2 = Math.min(...rects.map((r) => r.top)), bottom2 = Math.max(...rects.map((r) => r.bottom));
+    const oneLine = rects.every((r) => Math.abs(r.top - rects[0].top) < 4);
+    return { left: oneLine ? rects[0].left : Math.min(...rects.map((r) => r.left)), top: top2, bottom: bottom2 };
+  }
+  const a = analyze(cm.state.doc.toString()).anns.find((x) => x.id === b.id);
+  if (!a) return null;
+  const s = a.open >= 0 ? a.open : a.defFrom, e = a.open >= 0 ? a.refEnd : a.defTo;
+  const c1 = cm.coordsAtPos(s, 1), c2 = cm.coordsAtPos(e, -1);
+  if (!c1 && !c2) return null;
+  const top = (c1 != null ? c1 : c2).top, bottom = (c2 != null ? c2 : c1).bottom;
+  const left = c1 && c2 && Math.abs(c1.top - c2.top) < 4 ? c1.left : cm.contentDOM.getBoundingClientRect().left;
+  return { left, top, bottom };
+}
+function place2(b) {
+  var _a;
+  if (b.cm && !b.cm.dom.isConnected) {
+    finish(b, "away");
+    return;
+  }
+  const vv = window.visualViewport;
+  const vTop = vv ? vv.offsetTop : 0;
+  const vBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  const vRight = vv ? vv.offsetLeft + vv.width : window.innerWidth;
+  const h = b.el.offsetHeight, w = b.el.offsetWidth;
+  const r = (_a = anchorRect(b)) != null ? _a : (() => {
+    var _a2, _b;
+    const s = ((_b = (_a2 = b.cm) == null ? void 0 : _a2.scrollDOM) != null ? _b : document.body).getBoundingClientRect();
+    return { left: s.left + 16, top: s.top + s.height / 3, bottom: s.top + s.height / 3 };
+  })();
+  let top = r.bottom + 4;
+  if (top + h > vBottom - 4) {
+    const above = r.top - h - 4;
+    top = above >= vTop + 4 ? above : vBottom - h - 4;
+  }
+  top = Math.max(vTop + 4, top);
+  const left = Math.max(4, Math.min(r.left, vRight - w - 4));
+  b.el.setCssProps({ "--rm-top": `${top}px`, "--rm-left": `${left}px` });
+}
+
+// src/commands.ts
 var app2;
 function registerCommands(plugin) {
   app2 = plugin.app;
@@ -818,12 +992,10 @@ function registerCommands(plugin) {
       const from = editor.getCursor("from"), to = editor.getCursor("to");
       const err = checkTarget(editor.getValue(), editor.posToOffset(from), editor.posToOffset(to));
       if (typeof err === "string") {
-        new import_obsidian5.Notice("Review Marks: " + err);
+        new import_obsidian6.Notice("Review Marks: " + err);
         return;
       }
-      new CommentModal(app2, "New comment", "", (comment) => {
-        createAnnotation(editor, from, to, comment);
-      }).open();
+      annotateWithBox(editor, from, to, true);
     }
   });
   plugin.addCommand({
@@ -832,12 +1004,10 @@ function registerCommands(plugin) {
     editorCallback: (editor) => {
       const a = annotationAt(editor.getValue(), editor.posToOffset(editor.getCursor("head")));
       if (!a) {
-        new import_obsidian5.Notice("Review Marks: no annotation at the cursor.");
+        new import_obsidian6.Notice("Review Marks: no annotation at the cursor.");
         return;
       }
-      new CommentModal(app2, `Edit comment [^${a.id}]`, a.comment, (comment) => {
-        void writeComment(editor, a.id, comment);
-      }).open();
+      editWithBox(editor, a.id, true);
     }
   });
 }
@@ -898,7 +1068,7 @@ function createAnnotation(editor, from, to, comment) {
   const text = editor.getValue();
   const r = checkTarget(text, editor.posToOffset(from), editor.posToOffset(to));
   if (typeof r === "string") {
-    new import_obsidian5.Notice("Review Marks: " + r);
+    new import_obsidian6.Notice("Review Marks: " + r);
     return null;
   }
   const { anns } = analyze(text);
@@ -928,7 +1098,7 @@ function commentChange(text, id, comment) {
   return { from: p.at, to: p.at, insert: p.insert };
 }
 async function writeComment(target, id, comment) {
-  if (target instanceof import_obsidian5.TFile) {
+  if (target instanceof import_obsidian6.TFile) {
     let ok = false;
     await app2.vault.process(target, (data) => {
       const crlf = data.includes("\r\n");
@@ -948,8 +1118,8 @@ async function writeComment(target, id, comment) {
 }
 
 // src/convert.ts
-var import_state2 = require("@codemirror/state");
-var import_obsidian6 = require("obsidian");
+var import_state3 = require("@codemirror/state");
+var import_obsidian7 = require("obsidian");
 function registerConvertCommands(plugin) {
   plugin.addCommand({
     id: "move-comments-to-end-of-note",
@@ -1046,7 +1216,7 @@ function applyPlacement(editor, placement) {
   const old = editor.getValue();
   const r = convertPlacement(old, placement);
   if (typeof r === "string") {
-    new import_obsidian6.Notice("Review Marks: " + r);
+    new import_obsidian7.Notice("Review Marks: " + r);
     return;
   }
   const orphans = [];
@@ -1055,18 +1225,18 @@ function applyPlacement(editor, placement) {
   const orphanMsg = orphans.length ? ` Left in place: ${orphans.join(" and ")}.` : "";
   const where = placement === "end-of-note" ? "the end of the note" : "the end of their sections";
   if (r.text === old) {
-    new import_obsidian6.Notice(`Review Marks: ${r.moved ? `comments are already at ${where}.` : "no comments to move."}${orphanMsg}`);
+    new import_obsidian7.Notice(`Review Marks: ${r.moved ? `comments are already at ${where}.` : "no comments to move."}${orphanMsg}`);
     return;
   }
   const diff = lineChanges(old, r.text);
   const cm = editor.cm;
   if (cm && typeof cm.scrollSnapshot === "function") {
-    const cs = import_state2.ChangeSet.of(diff, old.length);
+    const cs = import_state3.ChangeSet.of(diff, old.length);
     cm.dispatch({ changes: cs, effects: cm.scrollSnapshot().map(cs), userEvent: "input.review-marks.convert" });
   } else {
     editor.transaction({ changes: diff.map((c) => ({ from: editor.offsetToPos(c.from), to: editor.offsetToPos(c.to), text: c.insert })) });
   }
-  new import_obsidian6.Notice(`Review Marks: moved ${r.moved} comment${r.moved === 1 ? "" : "s"} to ${where}.${orphanMsg}`);
+  new import_obsidian7.Notice(`Review Marks: moved ${r.moved} comment${r.moved === 1 ? "" : "s"} to ${where}.${orphanMsg}`);
 }
 function lineChanges(a, b) {
   const split = (s) => {
@@ -1144,16 +1314,16 @@ function lineChanges(a, b) {
 }
 
 // src/sidebar.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var VIEW_TYPE_ANNOTATIONS = "proto-review-marks-sidebar";
 var EXCERPT = 80;
 var app3;
 function registerSidebar(plugin) {
   app3 = plugin.app;
   plugin.registerView(VIEW_TYPE_ANNOTATIONS, (leaf) => new AnnotationsView(leaf));
-  const open = () => openSidebar(plugin);
-  plugin.addRibbonIcon("message-square-text", "Open annotations sidebar", open);
-  plugin.addCommand({ id: "open-annotations-sidebar", name: "Open annotations sidebar", callback: open });
+  const open2 = () => openSidebar(plugin);
+  plugin.addRibbonIcon("message-square-text", "Open annotations sidebar", open2);
+  plugin.addCommand({ id: "open-annotations-sidebar", name: "Open annotations sidebar", callback: open2 });
 }
 async function openSidebar(plugin) {
   var _a;
@@ -1223,7 +1393,7 @@ function unwrapChanges(text, id) {
   return out.sort((x, y) => x.from - y.from);
 }
 async function unwrapAnnotation(target, id) {
-  if (target instanceof import_obsidian7.TFile) {
+  if (target instanceof import_obsidian8.TFile) {
     let ok = false;
     await app3.vault.process(target, (data) => {
       const crlf = data.includes("\r\n");
@@ -1247,7 +1417,7 @@ async function unwrapAnnotation(target, id) {
   target.transaction({ changes: ch.map((c) => ({ from: target.offsetToPos(c.from), to: target.offsetToPos(c.to), text: "" })) });
   return true;
 }
-var AnnotationsView = class extends import_obsidian7.ItemView {
+var AnnotationsView = class extends import_obsidian8.ItemView {
   constructor(leaf) {
     super(leaf);
     this.file = null;
@@ -1257,7 +1427,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     this.sig = "";
     this.timer = 0;
     this.collapsed = /* @__PURE__ */ new Set();
-    this.scope = new import_obsidian7.Scope(this.app.scope);
+    this.scope = new import_obsidian8.Scope(this.app.scope);
     this.scope.register(["Mod"], "Enter", () => {
       var _a;
       const ta = document.activeElement;
@@ -1284,7 +1454,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     this.registerEvent(ws.on("active-leaf-change", (leaf) => this.onLeaf(leaf)));
     this.registerEvent(ws.on("file-open", () => {
       var _a, _b;
-      return this.onLeaf((_b = (_a = ws.getActiveViewOfType(import_obsidian7.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : null);
+      return this.onLeaf((_b = (_a = ws.getActiveViewOfType(import_obsidian8.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : null);
     }));
     this.registerEvent(ws.on("editor-change", (_e, info) => {
       if (info.file && info.file === this.file) this.schedule();
@@ -1304,7 +1474,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     }));
     ws.onLayoutReady(() => {
       var _a, _b;
-      const leaf = (_b = (_a = ws.getActiveViewOfType(import_obsidian7.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : ws.getMostRecentLeaf(ws.rootSplit);
+      const leaf = (_b = (_a = ws.getActiveViewOfType(import_obsidian8.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : ws.getMostRecentLeaf(ws.rootSplit);
       this.onLeaf(leaf);
       if (!this.file) void this.refresh();
     });
@@ -1313,7 +1483,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     window.clearTimeout(this.timer);
   }
   onLeaf(leaf) {
-    if (leaf && leaf.view instanceof import_obsidian7.MarkdownView) {
+    if (leaf && leaf.view instanceof import_obsidian8.MarkdownView) {
       this.noteLeaf = leaf;
       this.file = leaf.view.file;
     } else if (leaf && leaf.getRoot() === this.app.workspace.rootSplit) {
@@ -1329,12 +1499,12 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
   /** The open editor for the listed note, if any (also usable in Reading view). */
   editor() {
     const leaves = [this.noteLeaf, ...this.app.workspace.getLeavesOfType("markdown")];
-    for (const l of leaves) if (l && l.view instanceof import_obsidian7.MarkdownView && l.view.file === this.file) return l.view.editor;
+    for (const l of leaves) if (l && l.view instanceof import_obsidian8.MarkdownView && l.view.file === this.file) return l.view.editor;
     return null;
   }
   markdownView() {
     const leaves = [this.noteLeaf, ...this.app.workspace.getLeavesOfType("markdown")];
-    for (const l of leaves) if (l && l.view instanceof import_obsidian7.MarkdownView && l.view.file === this.file) return l.view;
+    for (const l of leaves) if (l && l.view instanceof import_obsidian8.MarkdownView && l.view.file === this.file) return l.view;
     return null;
   }
   async readText() {
@@ -1430,7 +1600,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     const box = parent.createDiv({ cls: "rm-sb-group" + (this.collapsed.has(this.ckey(g)) ? " is-collapsed" : "") });
     box.dataset.level = String(g.level);
     const head = box.createDiv({ cls: "rm-sb-group-head", attr: { role: "button", tabindex: "0", "aria-expanded": String(!this.collapsed.has(this.ckey(g))) } });
-    (0, import_obsidian7.setIcon)(head.createSpan({ cls: "rm-sb-chevron" }), "chevron-down");
+    (0, import_obsidian8.setIcon)(head.createSpan({ cls: "rm-sb-chevron" }), "chevron-down");
     head.createSpan({ cls: "rm-sb-group-title", text: g.title });
     head.createSpan({ cls: "rm-sb-group-count", text: String(g.total) });
     const toggle = () => {
@@ -1471,7 +1641,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
       }
     });
     const btn = row.createEl("button", { cls: "rm-sb-unwrap clickable-icon", attr: { "aria-label": "Unwrap: remove the annotation and keep the text" } });
-    (0, import_obsidian7.setIcon)(btn, "eraser");
+    (0, import_obsidian8.setIcon)(btn, "eraser");
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       void this.unwrap(a.id);
@@ -1500,21 +1670,21 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     const v = cleanComment(ta.value);
     if (v === ((_a = ta.dataset.saved) != null ? _a : "")) return;
     if (!v.trim()) {
-      new import_obsidian7.Notice("Review Marks: the comment is empty. Use the unwrap button to remove the annotation.");
+      new import_obsidian8.Notice("Review Marks: the comment is empty. Use the unwrap button to remove the annotation.");
       ta.value = (_b = ta.dataset.saved) != null ? _b : "";
       fit(ta);
       return;
     }
     ta.dataset.saved = v;
     const ok = await writeComment((_c = this.editor()) != null ? _c : this.file, id, v);
-    if (!ok) new import_obsidian7.Notice(`Review Marks: annotation [^${id}] is gone; the comment was not saved.`);
+    if (!ok) new import_obsidian8.Notice(`Review Marks: annotation [^${id}] is gone; the comment was not saved.`);
     this.schedule();
   }
   async unwrap(id) {
     var _a;
     if (!this.file) return;
     const ok = await unwrapAnnotation((_a = this.editor()) != null ? _a : this.file, id);
-    if (!ok) new import_obsidian7.Notice(`Review Marks: annotation [^${id}] not found.`);
+    if (!ok) new import_obsidian8.Notice(`Review Marks: annotation [^${id}] not found.`);
     void this.refresh();
   }
   async jump(id) {
@@ -1525,7 +1695,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     if (!view) {
       const leaf = this.app.workspace.getLeaf(false);
       await leaf.openFile(file);
-      if (!(leaf.view instanceof import_obsidian7.MarkdownView)) return;
+      if (!(leaf.view instanceof import_obsidian8.MarkdownView)) return;
       view = leaf.view;
     }
     const text = normalize(view.editor.getValue());
@@ -1533,7 +1703,7 @@ var AnnotationsView = class extends import_obsidian7.ItemView {
     if (!a) return;
     const at = a.open >= 0 ? a.open + 1 : a.defFrom;
     const end = a.open >= 0 ? a.close : a.defTo;
-    if (import_obsidian7.Platform.isMobile) this.app.workspace.rightSplit.collapse();
+    if (import_obsidian8.Platform.isMobile) this.app.workspace.rightSplit.collapse();
     this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
     if (view.getMode() === "source") {
       const ed = view.editor;
@@ -1576,8 +1746,373 @@ function fit(ta) {
   ta.style.height = ta.scrollHeight + 2 + "px";
 }
 
+// src/drag.ts
+var import_obsidian9 = require("obsidian");
+var import_state4 = require("@codemirror/state");
+var import_view3 = require("@codemirror/view");
+
+// src/dom-map.ts
+var SKIP2 = "sup.footnote-ref, .rm-badge, .rm-hidden, .footnotes, section.footnotes, .frontmatter, .metadata-container, .internal-embed, .math, .copy-code-button, .table-row-drag-handle, .table-col-drag-handle, .rm-cbox, .markdown-preview-pusher, .mod-header, .mod-footer, .embedded-backlinks";
+var SOFT = "*_~=`|#\\";
+function visibility(text, from, to) {
+  const vis = new Uint8Array(to - from).fill(1);
+  const { anns, ign } = analyze(text);
+  const set = (a, b, val) => {
+    for (let i = Math.max(a, from); i < Math.min(b, to); i++) vis[i - from] = val;
+  };
+  for (let i = from; i < to; i++) if (SOFT.includes(text[i])) vis[i - from] = 2;
+  const starts = lineStarts(text);
+  for (let k = 0; k < starts.length; k++) {
+    const s = starts[k];
+    const e = k + 1 < starts.length ? starts[k + 1] - 1 : text.length;
+    if (e < from || s > to) continue;
+    const line = text.slice(s, e);
+    if (isTableLine(line) && /^[\s|:-]+$/.test(line) && line.includes("-")) set(s, e, 0);
+    else if (/^\s*(?:>\s*)*(`{3,}|~{3,})/.test(line)) set(s, e, 0);
+    else if (/^\[\^[^\]\s]+\]:/.test(line) && !ign[s]) set(s, e, 0);
+    else if (!ign[s]) set(s, s + blockPrefixLength(line), 0);
+  }
+  const fm = /^---\n[\s\S]*?\n---(?=\n|$)/.exec(text);
+  if (fm) set(0, fm[0].length, 0);
+  for (const a of anns) {
+    if (a.open >= 0) {
+      set(a.open, a.open + 1, 0);
+      set(a.close, a.refEnd, 0);
+    }
+    if (a.defFrom >= 0) set(a.defFrom, a.defTo, 0);
+  }
+  const each = (re, f) => {
+    let m;
+    re.lastIndex = Math.max(0, from - 2e3);
+    while ((m = re.exec(text)) && m.index < to) if (!ign[m.index] && m.index + m[0].length > from) f(m);
+  };
+  const links = [];
+  each(/%%[\s\S]*?%%|<!--[\s\S]*?-->/g, (m) => set(m.index, m.index + m[0].length, 0));
+  each(/\[\^[^\]\s]+\](?!:)/g, (m) => set(m.index, m.index + m[0].length, 0));
+  each(/!\[\[[^\]\n]*\]\]|!\[[^\]\n]*\]\([^)\n]*\)/g, (m) => {
+    set(m.index, m.index + m[0].length, 0);
+    links.push({ s: m.index, e: m.index + m[0].length });
+  });
+  each(/(?<!!)\[\[([^\]\n]*)\]\]/g, (m) => {
+    const s = m.index, e = s + m[0].length;
+    const bar = /\\?\|/.exec(m[1]);
+    set(s, bar ? s + 2 + bar.index + bar[0].length : s + 2, 0);
+    set(e - 2, e, 0);
+    links.push({ s, e });
+  });
+  each(/(?<![!\]])\[([^\]\n]*)\]\(([^)\n]*)\)/g, (m) => {
+    const s = m.index, e = s + m[0].length;
+    set(s, s + 1, 0);
+    set(s + 1 + m[1].length, e, 0);
+    links.push({ s, e });
+  });
+  return { vis, links };
+}
+function textNodes(root) {
+  const out = [];
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n2) => {
+      for (let p = n2.parentElement; p && p !== root.parentElement; p = p.parentElement) if (p.matches(SKIP2)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let n;
+  while (n = w.nextNode()) out.push(n);
+  return out;
+}
+function mapSlice(text, sl) {
+  const { vis } = visibility(text, sl.from, sl.to);
+  const chars = [];
+  for (const node of textNodes(sl.el)) for (let i = 0; i < node.data.length; i++) if (!/\s/.test(node.data[i])) chars.push({ node, idx: i, ch: node.data[i] });
+  const V = (q) => vis[q - sl.from];
+  const seek = (q, c, maxHard) => {
+    let hard = 0;
+    for (; q < sl.to; q++) {
+      const m = V(q), sc = text[q];
+      if (m === 0 || /\s/.test(sc)) continue;
+      if (sc === c) return { at: q, hard };
+      if (m === 2) continue;
+      if (++hard > maxHard) break;
+    }
+    return { at: -1, hard };
+  };
+  const out = [];
+  let p = sl.from;
+  for (let k = 0; k < chars.length; k++) {
+    const r = seek(p, chars[k].ch, 12);
+    if (r.at < 0) continue;
+    if (r.hard > 0) {
+      let q = r.at + 1, ok = true;
+      for (let j = k + 1; j < Math.min(chars.length, k + 3); j++) {
+        const n = seek(q, chars[j].ch, 0);
+        if (n.at < 0) {
+          ok = false;
+          break;
+        }
+        q = n.at + 1;
+      }
+      if (!ok) continue;
+    }
+    out.push({ node: chars[k].node, idx: chars[k].idx, off: r.at });
+    p = r.at + 1;
+  }
+  return out;
+}
+function selected(range, h) {
+  try {
+    return range.comparePoint(h.node, h.idx) === 0 && range.comparePoint(h.node, h.idx + 1) === 0;
+  } catch (e) {
+    return false;
+  }
+}
+function mapSelection(text, slices, range) {
+  const hit = slices.filter((s) => range.intersectsNode(s.el));
+  if (!hit.length) return "the selection is not in the note text.";
+  let from = -1, to = -1;
+  for (const sl of hit) {
+    const first = mapSlice(text, sl).find((h) => selected(range, h));
+    if (first) {
+      from = first.off;
+      break;
+    }
+  }
+  for (let i = hit.length - 1; i >= 0; i--) {
+    const all = mapSlice(text, hit[i]);
+    for (let j = all.length - 1; j >= 0; j--) if (selected(range, all[j])) {
+      to = all[j].off + 1;
+      break;
+    }
+    if (to >= 0) break;
+  }
+  if (from < 0 || to <= from) return "could not find the selected text in the note.";
+  return snapRange(text, from, to);
+}
+function snapRange(text, from, to) {
+  const { links } = visibility(text, Math.max(0, from - 1), Math.min(text.length, to + 1));
+  for (const l of links) {
+    if (from > l.s && from < l.e) from = l.s;
+    if (to > l.s && to < l.e) to = l.e;
+  }
+  const { ign } = analyze(text);
+  if (ign[from] && from > 0 && text[from - 1] === "`" && ign[from - 1]) while (from > 0 && text[from - 1] === "`") from--;
+  if (to > 0 && ign[to - 1] && text[to] === "`" && ign[to]) while (to < text.length && text[to] === "`") to++;
+  return { from, to };
+}
+
+// src/drag.ts
+var app4;
+var setDrag = import_state4.StateEffect.define();
+var dragMark = import_view3.Decoration.mark({ class: "rm-drag-sel" });
+var dragField = import_state4.StateField.define({
+  create: () => import_view3.Decoration.none,
+  update(v, tr) {
+    v = v.map(tr.changes);
+    for (const e of tr.effects) if (e.is(setDrag)) v = e.value && e.value.to > e.value.from ? import_view3.Decoration.set([dragMark.range(e.value.from, e.value.to)]) : import_view3.Decoration.none;
+    return v;
+  },
+  provide: (f) => import_view3.EditorView.decorations.from(f)
+});
+function registerDrag(plugin) {
+  app4 = plugin.app;
+  plugin.registerEditorExtension(dragField);
+  plugin.registerDomEvent(window, "pointerdown", onDown, { capture: true });
+  plugin.registerDomEvent(window, "mousedown", (e) => {
+    if (gesture) swallow(e);
+  }, { capture: true });
+}
+function triggerHeld(e, trig = settings.dragTrigger) {
+  if (trig === "off") return false;
+  const parts = trig.split("-");
+  const want = { ctrl: false, meta: false, alt: parts.includes("alt"), shift: parts.includes("shift") };
+  if (parts.includes("mod")) {
+    if (import_obsidian9.Platform.isMacOS) want.meta = true;
+    else want.ctrl = true;
+  }
+  if (parts.includes("meta")) want.meta = true;
+  return e.ctrlKey === want.ctrl && e.metaKey === want.meta && e.altKey === want.alt && e.shiftKey === want.shift;
+}
+var cmOf2 = (v) => v.editor.cm;
+function viewOf(t) {
+  for (const leaf of app4.workspace.getLeavesOfType("markdown")) {
+    if (leaf.view instanceof import_obsidian9.MarkdownView && leaf.view.containerEl.contains(t)) return leaf.view;
+  }
+  return null;
+}
+function swallow(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+}
+var gesture = false;
+function track(move, up) {
+  gesture = true;
+  const pm = (e) => {
+    swallow(e);
+    move(e);
+  };
+  const mm = (e) => swallow(e);
+  const pu = (e) => {
+    swallow(e);
+    window.removeEventListener("pointermove", pm, true);
+    window.removeEventListener("pointerup", pu, true);
+    window.removeEventListener("pointercancel", pu, true);
+    const late = (c) => swallow(c);
+    window.addEventListener("mouseup", late, true);
+    window.addEventListener("click", late, true);
+    window.setTimeout(() => {
+      gesture = false;
+      window.removeEventListener("mousemove", mm, true);
+      window.removeEventListener("mouseup", late, true);
+      window.removeEventListener("click", late, true);
+    }, 0);
+    up(e);
+  };
+  window.addEventListener("pointermove", pm, true);
+  window.addEventListener("mousemove", mm, true);
+  window.addEventListener("pointerup", pu, true);
+  window.addEventListener("pointercancel", pu, true);
+}
+function onDown(e) {
+  if (e.button !== 0 || e.pointerType === "touch" || !triggerHeld(e)) return;
+  const t = e.target;
+  if (!(t == null ? void 0 : t.closest) || t.closest(".rm-cbox, .markdown-embed, .rm-badge")) return;
+  const view = viewOf(t);
+  if (!(view == null ? void 0 : view.file)) return;
+  if (view.getMode() === "preview") {
+    if (!t.closest(".markdown-reading-view .markdown-preview-view")) return;
+    swallow(e);
+    commitActiveBox();
+    domGesture(e, (range) => void readingDone(view, range));
+    return;
+  }
+  const cm = cmOf2(view);
+  if (!cm || !cm.dom.contains(t) || t.closest(".cm-gutters")) return;
+  swallow(e);
+  commitActiveBox();
+  const widget = t.closest(".cm-table-widget");
+  if (widget) domGesture(e, (range) => tableDone(view, widget, range));
+  else editorGesture(e, view, cm);
+}
+function editorGesture(e, view, cm) {
+  const at = (ev) => cm.posAtCoords({ x: ev.clientX, y: ev.clientY }, false);
+  const anchor = at(e);
+  const show = (head) => cm.dispatch({ effects: setDrag.of(head === null ? null : { from: Math.min(anchor, head), to: Math.max(anchor, head) }) });
+  track(
+    (ev) => show(at(ev)),
+    (ev) => {
+      const head = at(ev);
+      show(null);
+      if (head === anchor) return;
+      const r = snapRange(cm.state.doc.toString(), Math.min(anchor, head), Math.max(anchor, head));
+      const ed = view.editor;
+      annotateWithBox(ed, ed.offsetToPos(r.from), ed.offsetToPos(r.to), false);
+    }
+  );
+}
+function caretAt(x, y) {
+  const r = document.caretRangeFromPoint(x, y);
+  return r ? { node: r.startContainer, offset: r.startOffset } : null;
+}
+var W = window;
+function domGesture(e, done) {
+  var _a;
+  const start = caretAt(e.clientX, e.clientY);
+  if (!start) return;
+  (_a = window.getSelection()) == null ? void 0 : _a.removeAllRanges();
+  const anchor = document.createRange();
+  anchor.setStart(start.node, start.offset);
+  const range = anchor.cloneRange();
+  const draw = () => {
+    var _a2;
+    if (((_a2 = W.CSS) == null ? void 0 : _a2.highlights) && W.Highlight) W.CSS.highlights.set("rm-drag", new W.Highlight(range));
+    else {
+      const sel = window.getSelection();
+      sel == null ? void 0 : sel.removeAllRanges();
+      sel == null ? void 0 : sel.addRange(range);
+    }
+  };
+  const extend = (ev) => {
+    const c = caretAt(ev.clientX, ev.clientY);
+    if (!c) return;
+    const p = document.createRange();
+    p.setStart(c.node, c.offset);
+    if (p.compareBoundaryPoints(Range.START_TO_START, anchor) < 0) {
+      range.setStart(c.node, c.offset);
+      range.setEnd(start.node, start.offset);
+    } else {
+      range.setStart(start.node, start.offset);
+      range.setEnd(c.node, c.offset);
+    }
+    draw();
+  };
+  track(extend, (ev) => {
+    var _a2, _b, _c;
+    extend(ev);
+    (_b = (_a2 = W.CSS) == null ? void 0 : _a2.highlights) == null ? void 0 : _b.delete("rm-drag");
+    (_c = window.getSelection()) == null ? void 0 : _c.removeAllRanges();
+    if (!range.collapsed) done(range);
+  });
+}
+function tableDone(view, widget, range) {
+  const cm = cmOf2(view);
+  let pos;
+  try {
+    pos = cm.posAtDOM(widget);
+  } catch (e) {
+    return;
+  }
+  const doc = cm.state.doc;
+  const first = doc.lineAt(pos);
+  let last = first;
+  while (last.number < doc.lines && isTableLine(doc.line(last.number + 1).text)) last = doc.line(last.number + 1);
+  const text = doc.toString();
+  const r = mapSelection(text, [{ el: widget, from: first.from, to: last.to }], range);
+  if (typeof r === "string") {
+    new import_obsidian9.Notice("Review Marks: " + r);
+    return;
+  }
+  const ed = view.editor;
+  annotateWithBox(ed, ed.offsetToPos(r.from), ed.offsetToPos(r.to), false);
+}
+async function readingDone(view, range) {
+  var _a, _b, _c, _d;
+  const text = view.editor.getValue();
+  const sections = (_b = (_a = view.previewMode.renderer) == null ? void 0 : _a.sections) != null ? _b : [];
+  const starts = lineStarts(text);
+  const slices = sections.filter((s) => s.el && s.el.isConnected && s.start && !s.el.matches(".mod-header, .mod-footer")).map((s) => {
+    var _a2;
+    return {
+      el: s.el,
+      from: (_a2 = starts[s.start.line]) != null ? _a2 : text.length,
+      to: s.end.line + 1 < starts.length ? starts[s.end.line + 1] - 1 : text.length
+    };
+  });
+  const r = mapSelection(text, slices, range);
+  if (typeof r === "string") {
+    new import_obsidian9.Notice("Review Marks: " + r);
+    return;
+  }
+  const ok = checkTarget(text, r.from, r.to);
+  if (typeof ok === "string") {
+    new import_obsidian9.Notice("Review Marks: " + ok);
+    return;
+  }
+  const y = (_d = (_c = range.getClientRects()[0]) == null ? void 0 : _c.top) != null ? _d : range.getBoundingClientRect().top;
+  await view.leaf.setViewState({ type: "markdown", state: { ...view.getState(), mode: "source", source: false } });
+  const cm = cmOf2(view);
+  const frame = () => new Promise((res) => window.requestAnimationFrame(() => res()));
+  for (let i = 0; i < 4; i++) {
+    await frame();
+    const c = cm.coordsAtPos(ok.from, 1);
+    const cur = c ? c.top : cm.documentTop + cm.lineBlockAt(ok.from).top;
+    if (Math.abs(cur - y) > 1) cm.scrollDOM.scrollTop += cur - y;
+  }
+  const ed = view.editor;
+  annotateWithBox(ed, ed.offsetToPos(r.from), ed.offsetToPos(r.to), false);
+}
+
 // src/main.ts
-var ReviewMarksPlugin = class extends import_obsidian8.Plugin {
+var ReviewMarksPlugin = class extends import_obsidian10.Plugin {
   constructor() {
     super(...arguments);
     /** Also reachable as app.plugins.plugins['proto-review-marks'].api (handy from the console). */
@@ -1591,6 +2126,8 @@ var ReviewMarksPlugin = class extends import_obsidian8.Plugin {
     registerCommands(this);
     registerConvertCommands(this);
     registerSidebar(this);
+    this.registerEditorExtension(commentBoxExtension);
+    registerDrag(this);
     this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
     onSettingsChange(() => {
       refreshLivePreview(this.app);

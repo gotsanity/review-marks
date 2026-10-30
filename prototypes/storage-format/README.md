@@ -75,8 +75,8 @@ The 12 cases:
 - **Badge.** A pill after each Target shows the start of the Comment. Click it to pin the full Comment.
 - **Hover.** Hover a Target or badge to see the full Comment. On mobile, tap instead.
 - **Commands** (no default hotkeys):
-  - **Annotate selection.** Select text, run it, type the Comment. One Ctrl/Cmd+Z undoes the whole change.
-  - **Edit comment at cursor.** Works with the cursor on the Target, the marker or the definition.
+  - **Annotate selection.** Select text and run it. The annotation is created and the inline comment box opens under it.
+  - **Edit comment at cursor.** Works with the cursor on the Target, the marker or the definition. Opens the inline comment box.
 - **Settings** (Settings > Review Marks (prototype)): comment placement, show comment badge, badge excerpt length (32), show comment on hover, and hide review footnotes in the footnote list.
 
 The test note keeps one `<!-- PROTOTYPE NOTE -->` comment at the end. It says that r9 targets the first of two identical `17 (fail)` cells.
@@ -91,6 +91,24 @@ Open it with the ribbon icon (speech bubble) or the command **Open annotations s
 - **Unwrap** (eraser button, always visible) removes the braces, the marker and the definition, and keeps the Target as plain text. If the note is open, it is one undo step; otherwise it goes through `Vault.process`.
 - **Live updates.** The list refreshes when you switch notes, while you type in the note, and after edits from the sidebar. A textarea you are typing in keeps its text, caret and focus through a refresh.
 
+## Annotate on drag
+
+Hold the trigger keys, drag-select text with the mouse, and let go. The annotation is created at once and the inline comment box opens under the Target with the caret in it. The note does not scroll.
+
+- **Setting "Annotate-on-drag trigger"**: Off, Alt (default), Ctrl (Cmd on macOS), Shift, Meta, Ctrl+Alt, Ctrl+Shift, Alt+Shift or Ctrl+Alt+Shift. The exact combination must be held. While it is on, the editor's own behaviour for that combination is turned off. Alt+drag, for example, no longer makes a rectangular selection.
+- **Live Preview and Source mode**: works directly, table cells included.
+- **Reading view**: the selection is mapped back to the source, the tab switches to Live Preview with the Target at the same height on screen, and the box opens.
+- **Refusals**: the same as the command. A Target can't start or end in code, and it can't cross table cells. A notice explains why and nothing changes, and Reading view stays as it is.
+
+### Inline comment box
+
+It replaces the comment dialog everywhere, including both commands.
+
+- Enter saves. Shift+Enter adds a new line.
+- Clicking away saves if you typed something.
+- For a new annotation, Esc (or clicking away with nothing typed) removes the annotation completely, with no undo step left behind. When editing an existing comment, Esc only closes the box.
+- Save and Cancel buttons are always visible for touch. The box stays inside the visible area, above the on-screen keyboard.
+
 ## Code layout
 
 `plugins/review-marks/src/`:
@@ -99,13 +117,17 @@ Open it with the ribbon icon (speech bubble) or the command **Open annotations s
 | --- | --- |
 | `parse.ts` | Parser, code masking, headings and sections, definition placement. No Obsidian imports. |
 | `settings.ts` | Settings interface, defaults, the live `settings` object, the settings tab. |
-| `ui.ts` | Popover, badge, comment modal. |
+| `ui.ts` | Popover, badge, comment modal (no longer used). |
 | `render-dom.ts` | Decorates rendered HTML for a known source range. Reading view sections and Live Preview table cells both use it. |
 | `render-live.ts` | Live Preview: a StateField of decorations plus a scan of Obsidian's table widget. |
 | `render-reading.ts` | Reading view post processor and the footnote list. |
 | `commands.ts` | The two commands, `createAnnotation(editor, from, to, comment)` and `writeComment(editor \| file, id, comment)`. |
 | `convert.ts` | The two "Move comments to …" commands. |
 | `sidebar.ts` | The annotations sidebar (`ItemView`) and `unwrapAnnotation(editor \| file, id)`. |
+
+| `comment-box.ts` | Inline comment box. `annotateWithBox` creates an annotation and opens the box; `editWithBox` opens it on an existing one. |
+| `drag.ts` | Annotate-on-drag gesture (editor, Live Preview table widget, Reading view). |
+| `dom-map.ts` | Maps a range in rendered HTML back to source offsets. |
 | `main.ts` | Wiring only. |
 
 `createAnnotation`, `writeComment` and `unwrapAnnotation` are also on the plugin instance as `app.plugins.plugins['proto-review-marks'].api`.
