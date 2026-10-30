@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { tableWidgetCells } from './guards';
+import { caretFromPoint, tableWidgetCells } from './guards';
 import { block } from './test-support/fake-dom';
 
 const TEXT = 'Intro.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | {17 (fail)}[^r9] |\n';
@@ -52,5 +52,28 @@ describe('tableWidgetCells', () => {
 
 	it('fails when there is no table in the widget', () => {
 		expect(tableWidgetCells(block('<div class="cm-table-widget"></div>'), rows)).toBeNull();
+	});
+});
+
+describe('caretFromPoint', () => {
+	const text = document.createTextNode('Kell fails');
+
+	it('uses the standard caretPositionFromPoint first', () => {
+		const doc = { caretPositionFromPoint: () => ({ offsetNode: text, offset: 3 }), caretRangeFromPoint: () => null };
+		expect(caretFromPoint(doc, 10, 20)).toEqual({ node: text, offset: 3 });
+	});
+
+	it('falls back to caretRangeFromPoint', () => {
+		const range = document.createRange();
+		range.setStart(text, 5);
+		expect(caretFromPoint({ caretRangeFromPoint: () => range }, 10, 20)).toEqual({ node: text, offset: 5 });
+	});
+
+	it('is null when there is no caret at the point', () => {
+		expect(caretFromPoint({ caretPositionFromPoint: () => null }, 10, 20)).toBeNull();
+	});
+
+	it('is undefined when neither API exists', () => {
+		expect(caretFromPoint({}, 10, 20)).toBeUndefined();
 	});
 });

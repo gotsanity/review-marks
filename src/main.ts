@@ -8,6 +8,7 @@ import { registerNavigation } from './commands/navigate';
 import { registerRemoveAnnotation } from './commands/remove-annotation';
 import { closeActiveCommentBox } from './comment-box/comment-box';
 import { editorDrag } from './drag/editor-drag';
+import { registerReadingDrag } from './drag/reading-drag';
 import { addDragTriggerSetting } from './drag/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
@@ -46,6 +47,7 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerReadingView(this, settings, popover);
 		registerMoveComments(this);
 		this.registerEditorExtension(editorDrag(settings, Platform.isMacOS));
+		registerReadingDrag(this, settings, Platform.isMacOS);
 		this.registerEditorExtension(backspaceExtension);
 		registerRemoveAnnotation(this);
 		registerNavigation(this);

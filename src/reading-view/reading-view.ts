@@ -1,7 +1,8 @@
 // Reading view: a post processor decorates each rendered section. Reading view renders lazily,
 // a section at a time, so each call takes the whole note from the public `getSectionInfo`
 // (never `previewMode.renderer.sections`), parses it once, and decorates only its own lines.
-import { MarkdownView, TFile, type App, type Plugin } from 'obsidian';
+import { MarkdownView, TFile, type App, type MarkdownPostProcessorContext, type Plugin } from 'obsidian';
+import type { RenderedSection } from '../drag/reading-target';
 import {
 	excerpt,
 	footnoteListLabels,
@@ -119,12 +120,37 @@ function decorateSection(
 	});
 }
 
+/** Each rendered section's post-processor context, so its lines can be asked for later. */
+const sectionContexts = new WeakMap<HTMLElement, MarkdownPostProcessorContext>();
+
+/**
+ * The rendered sections under `root` (a Reading view), in document order, with their current
+ * source lines from `getSectionInfo`. Sections that no longer have section info are left out.
+ */
+export function renderedSections(root: HTMLElement): RenderedSection[] {
+	const out: RenderedSection[] = [];
+	const walk = (parent: Element) => {
+		for (const child of Array.from(parent.children)) {
+			const ctx = child.instanceOf(HTMLElement) ? sectionContexts.get(child) : undefined;
+			if (!ctx) {
+				walk(child);
+				continue;
+			}
+			const info = ctx.getSectionInfo(child as HTMLElement);
+			if (info) out.push({ el: child as HTMLElement, lineStart: info.lineStart, lineEnd: info.lineEnd });
+		}
+	};
+	walk(root);
+	return out;
+}
+
 export function registerReadingView(plugin: Plugin, settings: () => ReviewMarksSettings, popover: CommentPopover): void {
 	const { vault } = plugin.app;
 	plugin.registerMarkdownPostProcessor(async (el, ctx) => {
 		// No section info means an embed, a hover preview or an export; they are left as rendered.
 		const info = ctx.getSectionInfo(el);
 		if (!info) return;
+		sectionContexts.set(el, ctx);
 		// During `rerender(true)` the section info has its lines but an empty text: read the note.
 		let text = info.text;
 		if (text === '') {
