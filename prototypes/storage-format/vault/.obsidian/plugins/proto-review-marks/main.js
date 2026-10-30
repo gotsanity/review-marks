@@ -25,7 +25,7 @@ __export(main_exports, {
   writeComment: () => writeComment
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
@@ -51,8 +51,8 @@ async function saveSettings(plugin) {
   for (const cb of listeners) cb();
 }
 var ReviewMarksSettingTab = class extends import_obsidian.PluginSettingTab {
-  constructor(app3, plugin) {
-    super(app3, plugin);
+  constructor(app4, plugin) {
+    super(app4, plugin);
     this.plugin = plugin;
   }
   display() {
@@ -377,8 +377,8 @@ function makeBadge(a, sourcePath2) {
   return el;
 }
 var CommentModal = class extends import_obsidian2.Modal {
-  constructor(app3, heading, initial, onSubmit) {
-    super(app3);
+  constructor(app4, heading, initial, onSubmit) {
+    super(app4);
     this.heading = heading;
     this.initial = initial;
     this.onSubmit = onSubmit;
@@ -712,8 +712,8 @@ function scanTables(view) {
   });
 }
 var livePreviewExtension = [annotationsField, focusField, focusTracker, import_state.Prec.highest(decoField), hover, tableScan];
-function refreshLivePreview(app3) {
-  for (const leaf of app3.workspace.getLeavesOfType("markdown")) {
+function refreshLivePreview(app4) {
+  for (const leaf of app4.workspace.getLeavesOfType("markdown")) {
     const v = leaf.view;
     if (!(v instanceof import_obsidian3.MarkdownView)) continue;
     const cm = v.editor.cm;
@@ -947,12 +947,445 @@ async function writeComment(target, id, comment) {
   return true;
 }
 
+// src/sidebar.ts
+var import_obsidian6 = require("obsidian");
+var VIEW_TYPE_ANNOTATIONS = "proto-review-marks-sidebar";
+var EXCERPT = 80;
+var app3;
+function registerSidebar(plugin) {
+  app3 = plugin.app;
+  plugin.registerView(VIEW_TYPE_ANNOTATIONS, (leaf) => new AnnotationsView(leaf));
+  const open = () => openSidebar(plugin);
+  plugin.addRibbonIcon("message-square-text", "Open annotations sidebar", open);
+  plugin.addCommand({ id: "open-annotations-sidebar", name: "Open annotations sidebar", callback: open });
+}
+async function openSidebar(plugin) {
+  var _a;
+  const ws = plugin.app.workspace;
+  const leaf = (_a = ws.getLeavesOfType(VIEW_TYPE_ANNOTATIONS)[0]) != null ? _a : ws.getRightLeaf(false);
+  if (!leaf) return;
+  if (!(leaf.view instanceof AnnotationsView)) await leaf.setViewState({ type: VIEW_TYPE_ANNOTATIONS, active: true });
+  await ws.revealLeaf(leaf);
+}
+function targetExcerpt(text, a) {
+  const raw = text.slice(a.open + 1, a.close);
+  const flat = raw.split("\n").map((l, i) => (i === 0 ? l : l.slice(blockPrefixLength(l))).replace(/^\|\s*|\s*\|$/g, "").trim()).filter((l) => l !== "").join(" / ").replace(/\}\[\^r\d+\]/g, "").replace(/[{}]/g, "").replace(/\[\[([^\]|]*?)(?:\\?\|([^\]]*))?\]\]/g, (_m, p, alias) => alias != null ? alias : p).replace(/\*\*|__|==|~~/g, "").replace(/\s+/g, " ");
+  return flat.length > EXCERPT ? flat.slice(0, EXCERPT).trimEnd() + "\u2026" : flat;
+}
+function headingTitle(line) {
+  return line.replace(/^#{1,6}\s*/, "").replace(/\}\[\^r\d+\]/g, "").replace(/[{}]/g, "").replace(/\s+#+\s*$/, "").trim() || "(untitled heading)";
+}
+function buildGroups(text, noteName) {
+  const { anns, ign } = analyze(text);
+  const hs = headingStarts(text, ign);
+  const top = { title: noteName, level: 0, anns: [], children: [], total: 0 };
+  const heads = hs.map((h) => {
+    const e = text.indexOf("\n", h);
+    const line = text.slice(h, e < 0 ? text.length : e);
+    return { title: headingTitle(line), level: /^#+/.exec(line)[0].length, anns: [], children: [], total: 0 };
+  });
+  const orphans = [];
+  for (const a of anns) {
+    if (a.open < 0) {
+      orphans.push(a);
+      continue;
+    }
+    let gi = -1;
+    for (let i = 0; i < hs.length && hs[i] <= a.open; i++) gi = i;
+    (gi < 0 ? top : heads[gi]).anns.push(a);
+  }
+  const roots = [top];
+  const stack = [];
+  for (const g of heads) {
+    while (stack.length && stack[stack.length - 1].level >= g.level) stack.pop();
+    (stack.length ? stack[stack.length - 1].children : roots).push(g);
+    stack.push(g);
+  }
+  const prune = (gs) => gs.filter((g) => {
+    g.children = prune(g.children);
+    g.total = g.anns.length + g.children.reduce((n, c) => n + c.total, 0);
+    return g.total > 0;
+  });
+  return { roots: prune(roots), orphans, total: anns.length };
+}
+function cleanComment(s) {
+  return s.replace(/\s+$/, "").replace(/^\s*\n/, "").split("\n").map((l) => l.trim() === "" ? "" : l).join("\n");
+}
+function unwrapChanges(text, id) {
+  const a = analyze(text).anns.find((x) => x.id === id);
+  if (!a) return null;
+  const out = [];
+  if (a.open >= 0) out.push({ from: a.open, to: a.open + 1 }, { from: a.close, to: a.refEnd });
+  if (a.defFrom >= 0) {
+    let s = a.defFrom, e = a.defTo;
+    if (text[e] === "\n") e++;
+    if (e >= text.length) {
+      while (s > 1 && text[s - 1] === "\n" && text[s - 2] === "\n") s--;
+    } else if (text[e] === "\n" && (s === 0 || text[s - 1] === "\n" && text[s - 2] === "\n")) e++;
+    out.push({ from: s, to: e });
+  }
+  return out.sort((x, y) => x.from - y.from);
+}
+async function unwrapAnnotation(target, id) {
+  if (target instanceof import_obsidian6.TFile) {
+    let ok = false;
+    await app3.vault.process(target, (data) => {
+      const crlf = data.includes("\r\n");
+      const text = normalize(data);
+      const ch2 = unwrapChanges(text, id);
+      if (!ch2) return data;
+      ok = true;
+      let out = "";
+      let at = 0;
+      for (const c of ch2) {
+        out += text.slice(at, c.from);
+        at = c.to;
+      }
+      out += text.slice(at);
+      return crlf ? out.replace(/\n/g, "\r\n") : out;
+    });
+    return ok;
+  }
+  const ch = unwrapChanges(target.getValue(), id);
+  if (!ch) return false;
+  target.transaction({ changes: ch.map((c) => ({ from: target.offsetToPos(c.from), to: target.offsetToPos(c.to), text: "" })) });
+  return true;
+}
+var AnnotationsView = class extends import_obsidian6.ItemView {
+  constructor(leaf) {
+    super(leaf);
+    this.file = null;
+    /** The markdown leaf the listed note was last active in (the sidebar itself takes focus when used). */
+    this.noteLeaf = null;
+    this.text = "";
+    this.sig = "";
+    this.timer = 0;
+    this.collapsed = /* @__PURE__ */ new Set();
+    this.scope = new import_obsidian6.Scope(this.app.scope);
+    this.scope.register(["Mod"], "Enter", () => {
+      var _a;
+      const ta = document.activeElement;
+      if (!(ta instanceof HTMLTextAreaElement) || !((_a = this.listEl) == null ? void 0 : _a.contains(ta))) return;
+      void this.save(ta);
+      return false;
+    });
+  }
+  getViewType() {
+    return VIEW_TYPE_ANNOTATIONS;
+  }
+  getDisplayText() {
+    return "Annotations";
+  }
+  getIcon() {
+    return "message-square-text";
+  }
+  async onOpen() {
+    this.contentEl.empty();
+    this.contentEl.addClass("rm-sidebar");
+    this.countEl = this.contentEl.createDiv({ cls: "rm-sb-count" });
+    this.listEl = this.contentEl.createDiv({ cls: "rm-sb-list" });
+    const ws = this.app.workspace;
+    this.registerEvent(ws.on("active-leaf-change", (leaf) => this.onLeaf(leaf)));
+    this.registerEvent(ws.on("file-open", () => {
+      var _a, _b;
+      return this.onLeaf((_b = (_a = ws.getActiveViewOfType(import_obsidian6.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : null);
+    }));
+    this.registerEvent(ws.on("editor-change", (_e, info) => {
+      if (info.file && info.file === this.file) this.schedule();
+    }));
+    this.registerEvent(this.app.vault.on("modify", (f) => {
+      if (f === this.file) this.schedule();
+    }));
+    this.registerEvent(this.app.vault.on("rename", (f) => {
+      if (f === this.file) this.schedule();
+    }));
+    this.registerEvent(this.app.vault.on("delete", (f) => {
+      if (f === this.file) {
+        this.file = null;
+        this.noteLeaf = null;
+        void this.refresh();
+      }
+    }));
+    ws.onLayoutReady(() => {
+      var _a, _b;
+      const leaf = (_b = (_a = ws.getActiveViewOfType(import_obsidian6.MarkdownView)) == null ? void 0 : _a.leaf) != null ? _b : ws.getMostRecentLeaf(ws.rootSplit);
+      this.onLeaf(leaf);
+      if (!this.file) void this.refresh();
+    });
+  }
+  async onClose() {
+    window.clearTimeout(this.timer);
+  }
+  onLeaf(leaf) {
+    if (leaf && leaf.view instanceof import_obsidian6.MarkdownView) {
+      this.noteLeaf = leaf;
+      this.file = leaf.view.file;
+    } else if (leaf && leaf.getRoot() === this.app.workspace.rootSplit) {
+      this.noteLeaf = null;
+      this.file = null;
+    } else return;
+    void this.refresh();
+  }
+  schedule() {
+    window.clearTimeout(this.timer);
+    this.timer = window.setTimeout(() => void this.refresh(), 250);
+  }
+  /** The open editor for the listed note, if any (also usable in Reading view). */
+  editor() {
+    const leaves = [this.noteLeaf, ...this.app.workspace.getLeavesOfType("markdown")];
+    for (const l of leaves) if (l && l.view instanceof import_obsidian6.MarkdownView && l.view.file === this.file) return l.view.editor;
+    return null;
+  }
+  markdownView() {
+    const leaves = [this.noteLeaf, ...this.app.workspace.getLeavesOfType("markdown")];
+    for (const l of leaves) if (l && l.view instanceof import_obsidian6.MarkdownView && l.view.file === this.file) return l.view;
+    return null;
+  }
+  async readText() {
+    if (!this.file) return "";
+    const ed = this.editor();
+    return normalize(ed ? ed.getValue() : await this.app.vault.cachedRead(this.file));
+  }
+  async refresh() {
+    window.clearTimeout(this.timer);
+    const file = this.file;
+    const text = await this.readText();
+    if (file !== this.file) return;
+    this.text = text;
+    if (!file) {
+      this.sig = "";
+      this.countEl.setText("");
+      this.listEl.empty();
+      this.listEl.createDiv({ cls: "rm-sb-empty", text: "Open a note to see its annotations." });
+      return;
+    }
+    const { roots, orphans, total } = buildGroups(text, file.basename);
+    this.countEl.setText(total === 1 ? "1 annotation" : `${total} annotations`);
+    if (!total) {
+      this.sig = "";
+      this.listEl.empty();
+      this.listEl.createDiv({ cls: "rm-sb-empty", text: "No annotations in this note." });
+      return;
+    }
+    const parts = [file.path];
+    const walk = (gs) => {
+      for (const g of gs) {
+        parts.push(`[${g.level}:${g.title}:${g.total}`, ...g.anns.map((a) => a.id + ":" + targetExcerpt(text, a)));
+        walk(g.children);
+        parts.push("]");
+      }
+    };
+    walk(roots);
+    parts.push(...orphans.map((a) => a.id));
+    const sig = parts.join("\n");
+    if (sig === this.sig) {
+      this.patch(roots, orphans);
+      return;
+    }
+    const samePath = this.sig.startsWith(file.path + "\n");
+    this.sig = sig;
+    this.rebuild(roots, orphans, samePath);
+  }
+  /** Same entries as before: only the comments may have changed. Leaves a textarea being typed in alone. */
+  patch(roots, orphans) {
+    var _a;
+    const all = [...orphans];
+    const walk = (gs) => {
+      for (const g of gs) {
+        all.push(...g.anns);
+        walk(g.children);
+      }
+    };
+    walk(roots);
+    for (const a of all) {
+      const ta = this.listEl.querySelector(`textarea[data-rm-id="${a.id}"]`);
+      if (!ta) continue;
+      const saved = (_a = ta.dataset.saved) != null ? _a : "";
+      if (a.comment === saved) continue;
+      if (document.activeElement !== ta || ta.value === saved) {
+        ta.value = a.comment;
+        fit(ta);
+      }
+      ta.dataset.saved = a.comment;
+    }
+  }
+  rebuild(roots, orphans, samePath) {
+    const act = document.activeElement;
+    const keep = act instanceof HTMLTextAreaElement && this.listEl.contains(act) ? { id: act.dataset.rmId, value: act.value, saved: act.dataset.saved, s: act.selectionStart, e: act.selectionEnd } : null;
+    const scroll = samePath ? this.contentEl.scrollTop : 0;
+    this.listEl.empty();
+    for (const g of roots) this.renderGroup(this.listEl, g);
+    if (orphans.length) {
+      const g = { title: "Comments without a target", level: 1, anns: orphans, children: [], total: orphans.length };
+      this.renderGroup(this.listEl, g);
+    }
+    this.contentEl.scrollTop = scroll;
+    if (keep) {
+      const ta = this.listEl.querySelector(`textarea[data-rm-id="${keep.id}"]`);
+      if (ta) {
+        if (keep.value !== keep.saved) ta.value = keep.value;
+        fit(ta);
+        ta.focus({ preventScroll: true });
+        ta.setSelectionRange(keep.s, keep.e);
+      }
+    }
+  }
+  renderGroup(parent, g) {
+    const box = parent.createDiv({ cls: "rm-sb-group" + (this.collapsed.has(this.ckey(g)) ? " is-collapsed" : "") });
+    box.dataset.level = String(g.level);
+    const head = box.createDiv({ cls: "rm-sb-group-head", attr: { role: "button", tabindex: "0", "aria-expanded": String(!this.collapsed.has(this.ckey(g))) } });
+    (0, import_obsidian6.setIcon)(head.createSpan({ cls: "rm-sb-chevron" }), "chevron-down");
+    head.createSpan({ cls: "rm-sb-group-title", text: g.title });
+    head.createSpan({ cls: "rm-sb-group-count", text: String(g.total) });
+    const toggle = () => {
+      const k = this.ckey(g);
+      const now = !this.collapsed.has(k);
+      if (now) this.collapsed.add(k);
+      else this.collapsed.delete(k);
+      box.toggleClass("is-collapsed", now);
+      head.setAttribute("aria-expanded", String(!now));
+    };
+    head.addEventListener("click", toggle);
+    head.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    });
+    const body = box.createDiv({ cls: "rm-sb-group-body" });
+    for (const a of g.anns) this.renderEntry(body, a);
+    for (const c of g.children) this.renderGroup(body, c);
+  }
+  /** Collapse state survives refreshes; keyed by note, heading text and level. */
+  ckey(g) {
+    var _a;
+    return `${(_a = this.file) == null ? void 0 : _a.path}#${g.level}:${g.title}`;
+  }
+  renderEntry(parent, a) {
+    const el = parent.createDiv({ cls: "rm-sb-entry" });
+    el.dataset.rmId = a.id;
+    const row = el.createDiv({ cls: "rm-sb-entry-head" });
+    const tgt = row.createDiv({ cls: "rm-sb-target", attr: { role: "button", tabindex: "0", "aria-label": "Go to annotation" } });
+    tgt.setText(a.open >= 0 ? targetExcerpt(this.text, a) : `[^${a.id}] (no target)`);
+    tgt.addEventListener("click", () => void this.jump(a.id));
+    tgt.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void this.jump(a.id);
+      }
+    });
+    const btn = row.createEl("button", { cls: "rm-sb-unwrap clickable-icon", attr: { "aria-label": "Unwrap: remove the annotation and keep the text" } });
+    (0, import_obsidian6.setIcon)(btn, "eraser");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void this.unwrap(a.id);
+    });
+    const ta = el.createEl("textarea", { cls: "rm-sb-comment", attr: { rows: "1", placeholder: "Add a comment\u2026", "aria-label": `Comment [^${a.id}]`, spellcheck: "true" } });
+    ta.dataset.rmId = a.id;
+    ta.dataset.saved = a.comment;
+    ta.value = a.comment;
+    ta.addEventListener("input", () => fit(ta));
+    ta.addEventListener("blur", () => void this.save(ta));
+    ta.addEventListener("keydown", (e) => {
+      var _a;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        ta.value = (_a = ta.dataset.saved) != null ? _a : "";
+        fit(ta);
+        ta.blur();
+      }
+    });
+    window.requestAnimationFrame(() => fit(ta));
+  }
+  async save(ta) {
+    var _a, _b, _c;
+    if (!this.file || !ta.isConnected) return;
+    const id = ta.dataset.rmId;
+    const v = cleanComment(ta.value);
+    if (v === ((_a = ta.dataset.saved) != null ? _a : "")) return;
+    if (!v.trim()) {
+      new import_obsidian6.Notice("Review Marks: the comment is empty. Use the unwrap button to remove the annotation.");
+      ta.value = (_b = ta.dataset.saved) != null ? _b : "";
+      fit(ta);
+      return;
+    }
+    ta.dataset.saved = v;
+    const ok = await writeComment((_c = this.editor()) != null ? _c : this.file, id, v);
+    if (!ok) new import_obsidian6.Notice(`Review Marks: annotation [^${id}] is gone; the comment was not saved.`);
+    this.schedule();
+  }
+  async unwrap(id) {
+    var _a;
+    if (!this.file) return;
+    const ok = await unwrapAnnotation((_a = this.editor()) != null ? _a : this.file, id);
+    if (!ok) new import_obsidian6.Notice(`Review Marks: annotation [^${id}] not found.`);
+    void this.refresh();
+  }
+  async jump(id) {
+    var _a;
+    const file = this.file;
+    if (!file) return;
+    let view = this.markdownView();
+    if (!view) {
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.openFile(file);
+      if (!(leaf.view instanceof import_obsidian6.MarkdownView)) return;
+      view = leaf.view;
+    }
+    const text = normalize(view.editor.getValue());
+    const a = analyze(text).anns.find((x) => x.id === id);
+    if (!a) return;
+    const at = a.open >= 0 ? a.open + 1 : a.defFrom;
+    const end = a.open >= 0 ? a.close : a.defTo;
+    if (import_obsidian6.Platform.isMobile) this.app.workspace.rightSplit.collapse();
+    this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
+    if (view.getMode() === "source") {
+      const ed = view.editor;
+      const cm = ed.cm;
+      const pos = ed.offsetToPos(at);
+      const inTable = isTableLine(ed.getLine(pos.line));
+      cm.focus();
+      ed.setCursor(pos);
+      ed.scrollIntoView({ from: pos, to: ed.offsetToPos(end) }, true);
+      if (inTable) {
+        cm.scrollDOM.scrollTop = cm.lineBlockAt(at).top - cm.scrollDOM.clientHeight / 3;
+        window.setTimeout(() => {
+          var _a2;
+          (_a2 = cm.dom.querySelector(`.cm-table-widget [data-rm-id="${id}"]`)) == null ? void 0 : _a2.scrollIntoView({ block: "center" });
+        }, 150);
+      }
+      window.setTimeout(() => {
+        if (!view.containerEl.contains(document.activeElement)) (inTable ? ed : cm).focus();
+      }, 50);
+    } else {
+      const line = ((_a = text.slice(0, at).match(/\n/g)) != null ? _a : []).length;
+      view.previewMode.applyScroll(Math.max(0, line - 2));
+      flashInPreview(view, a.id);
+    }
+  }
+};
+function flashInPreview(view, id, tries = 20) {
+  const el = view.previewMode.containerEl.querySelector(`.rm-target[data-rm-id="${id}"]`);
+  if (!el) {
+    if (tries > 0) window.setTimeout(() => flashInPreview(view, id, tries - 1), 50);
+    return;
+  }
+  el.scrollIntoView({ block: "center" });
+  const all = view.previewMode.containerEl.querySelectorAll(`.rm-target[data-rm-id="${id}"]`);
+  all.forEach((t) => t.addClass("rm-flash"));
+  window.setTimeout(() => all.forEach((t) => t.removeClass("rm-flash")), 1200);
+}
+function fit(ta) {
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + 2 + "px";
+}
+
 // src/main.ts
-var ReviewMarksPlugin = class extends import_obsidian6.Plugin {
+var ReviewMarksPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
     /** Also reachable as app.plugins.plugins['proto-review-marks'].api (handy from the console). */
-    this.api = { createAnnotation, writeComment };
+    this.api = { createAnnotation, writeComment, unwrapAnnotation };
   }
   async onload() {
     await loadSettings(this);
@@ -960,6 +1393,7 @@ var ReviewMarksPlugin = class extends import_obsidian6.Plugin {
     this.registerEditorExtension(livePreviewExtension);
     registerReading(this);
     registerCommands(this);
+    registerSidebar(this);
     this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
     onSettingsChange(() => {
       refreshLivePreview(this.app);

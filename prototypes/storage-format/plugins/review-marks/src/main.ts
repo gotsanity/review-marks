@@ -6,6 +6,7 @@
 //   src/render-live.ts     Live Preview
 //   src/render-reading.ts  Reading view
 //   src/commands.ts        commands, createAnnotation(), writeComment()
+//   src/sidebar.ts         annotations sidebar (ItemView), unwrapAnnotation()
 // No tests, minimal error handling.
 import { Plugin } from 'obsidian';
 import { ReviewMarksSettingTab, loadSettings, onSettingsChange } from './settings';
@@ -13,12 +14,13 @@ import { hidePopover, initUi, popoverContains } from './ui';
 import { livePreviewExtension, refreshLivePreview } from './render-live';
 import { registerReading, rerenderPreviews } from './render-reading';
 import { createAnnotation, registerCommands, writeComment } from './commands';
+import { registerSidebar, unwrapAnnotation } from './sidebar';
 
 export { createAnnotation, writeComment } from './commands';
 
 export default class ReviewMarksPlugin extends Plugin {
   /** Also reachable as app.plugins.plugins['proto-review-marks'].api (handy from the console). */
-  api = { createAnnotation, writeComment };
+  api = { createAnnotation, writeComment, unwrapAnnotation };
 
   async onload() {
     await loadSettings(this);
@@ -26,6 +28,7 @@ export default class ReviewMarksPlugin extends Plugin {
     this.registerEditorExtension(livePreviewExtension);
     registerReading(this);
     registerCommands(this);
+    registerSidebar(this);
     this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
     onSettingsChange(() => { refreshLivePreview(this.app); rerenderPreviews(this); });
     this.registerDomEvent(document, 'click', (e) => {
