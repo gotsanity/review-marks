@@ -1,6 +1,5 @@
 // The comment popover: the full Comment, rendered as Markdown, next to a Target or badge. It opens
-// on hover (desktop, with the hover setting on), on tap (mobile, same setting), and always on a
-// badge click. A click opens it pinned: it stays until a click outside, Escape or a second click.
+// on hover (desktop, with the hover setting on), and always on a tap (mobile) or a badge click. A click opens it pinned: it stays until a click outside, Escape or a second click.
 import { Component, Keymap, MarkdownRenderer, Platform, type App } from 'obsidian';
 import type { ReviewMarksSettings } from '../settings';
 
@@ -28,6 +27,7 @@ export class CommentPopover {
 	private hideTimer: number | undefined;
 	private content: Component | null = null;
 	private stopOutside: (() => void) | null = null;
+	private stopWatching: (() => void) | null = null;
 	private readonly handled = new WeakSet<Event>();
 
 	constructor(
@@ -43,10 +43,14 @@ export class CommentPopover {
 	 * an anchor (an element with `data-rm-id`), or null to ignore it. Returns a function that stops.
 	 */
 	attach(root: HTMLElement, resolve: (anchor: HTMLElement) => CommentRef | null): () => void {
+		// Whether the Annotation still has a Target or badge under the root, however often it was redrawn.
+		const present = (id: string) => () =>
+			root.isConnected &&
+			Array.from(root.querySelectorAll<HTMLElement>(ANCHOR)).some((a) => a.getAttribute('data-rm-id') === id && resolve(a) !== null);
 		const over = (e: MouseEvent) => {
 			const anchor = anchorOf(e.target);
 			const ref = anchor && root.contains(anchor) ? resolve(anchor) : null;
-			if (anchor && ref) this.hoverStart(anchor, ref);
+			if (anchor && ref) this.hoverStart(anchor, ref, present(ref.id));
 		};
 		const out = (e: MouseEvent) => {
 			const anchor = anchorOf(e.target);
@@ -57,7 +61,7 @@ export class CommentPopover {
 			// another: a click must toggle the popover only once.
 			if (this.handled.has(e)) return;
 			const ref = anchor && root.contains(anchor) ? resolve(anchor) : null;
-			if (!anchor || !ref || !this.click(anchor, ref, anchor.hasClass('rm-badge'))) return;
+			if (!anchor || !ref || !this.click(anchor, ref, anchor.hasClass('rm-badge'), present(ref.id))) return;
 			// The event goes on as usual: Live Preview's table widget needs it to open its cell editor.
 			this.handled.add(e);
 		};
@@ -95,12 +99,12 @@ export class CommentPopover {
 		};
 	}
 
-	/** The pointer entered a Target or badge. */
-	hoverStart(anchor: HTMLElement, ref: CommentRef): void {
+	/** The pointer entered a Target or badge. `present` tells whether the Annotation is still shown. */
+	hoverStart(anchor: HTMLElement, ref: CommentRef, present: () => boolean): void {
 		if (!this.settings().showHover || Platform.isMobile) return;
 		window.clearTimeout(this.hideTimer);
 		if (this.pinned || (this.el && this.key === keyOf(ref))) return;
-		this.open(anchor, ref, false);
+		this.open(anchor, ref, false, present);
 	}
 
 	/** The pointer left a Target, a badge or the popover. */
@@ -111,10 +115,11 @@ export class CommentPopover {
 	}
 
 	/** A click or tap. Returns true when it opened or closed the popover. */
-	click(anchor: HTMLElement, ref: CommentRef, isBadge: boolean): boolean {
-		if (!isBadge && !(Platform.isMobile && this.settings().showHover)) return false;
+	click(anchor: HTMLElement, ref: CommentRef, isBadge: boolean, present: () => boolean): boolean {
+		// On mobile a tap on a Target opens it whatever the hover setting: a tap is not a hover.
+		if (!isBadge && !Platform.isMobile) return false;
 		if (this.pinned && this.key === keyOf(ref)) this.close();
-		else this.open(anchor, ref, true);
+		else this.open(anchor, ref, true, present);
 		return true;
 	}
 
@@ -122,6 +127,8 @@ export class CommentPopover {
 		window.clearTimeout(this.hideTimer);
 		this.stopOutside?.();
 		this.stopOutside = null;
+		this.stopWatching?.();
+		this.stopWatching = null;
 		this.el?.remove();
 		if (this.content) this.owner.removeChild(this.content);
 		this.el = null;
@@ -130,7 +137,7 @@ export class CommentPopover {
 		this.pinned = false;
 	}
 
-	private open(anchor: HTMLElement, ref: CommentRef, pin: boolean): void {
+	private open(anchor: HTMLElement, ref: CommentRef, pin: boolean, present: () => boolean): void {
 		this.close();
 		const doc = anchor.ownerDocument;
 		const el = doc.body.createDiv({ cls: 'rm-popover' });
@@ -161,7 +168,29 @@ export class CommentPopover {
 		el.addEventListener('mouseenter', () => window.clearTimeout(this.hideTimer));
 		el.addEventListener('mouseleave', () => this.hoverEnd());
 		if (pin) this.closeOnOutside(doc, anchor);
+		this.closeWhenGone(doc, present);
 		this.place(anchor);
+	}
+
+	/**
+	 * Closes the popover once its Annotation is no longer shown: its Target removed (a new
+	 * Annotation cancelled, an edit) or its note closed. The pointer may never leave it then.
+	 */
+	private closeWhenGone(doc: Document, present: () => boolean): void {
+		const win = doc.defaultView ?? window;
+		let queued = false;
+		const observer = new MutationObserver(() => {
+			if (queued) return;
+			queued = true;
+			win.requestAnimationFrame(() => {
+				queued = false;
+				// Only for the popover this watch was started for.
+				if (this.stopWatching === stop && !present()) this.close();
+			});
+		});
+		const stop = () => observer.disconnect();
+		observer.observe(doc.body, { childList: true, subtree: true });
+		this.stopWatching = stop;
 	}
 
 	private closeOnOutside(doc: Document, anchor: HTMLElement): void {

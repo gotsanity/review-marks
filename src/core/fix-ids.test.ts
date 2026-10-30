@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges } from './changes';
-import { duplicateIds, planFixIds } from './fix-ids';
-import { parse } from './parse';
-import { isRefusal } from './types';
+import { applyChanges, duplicateIds, isRefusal, parse, planFixIds } from './index';
 
 function fix(text: string): string {
 	const plan = planFixIds(parse(text));

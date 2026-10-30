@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { excerpt } from './definition';
+import { excerpt } from './index';
 
 describe('excerpt', () => {
 	it('shows a short one-line Comment whole', () => {

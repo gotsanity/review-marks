@@ -17,16 +17,16 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 One folder or file per module, so features land as new files:
 
 - `src/core/`: the annotation core. Pure, no Obsidian or CodeMirror imports. `parse(text)` returns an `AnnotationDoc`; planners such as `planCreate` return a plan with `Change[]` or a `Refusal`. Every format rule goes here, with tests.
-- `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
-- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, the Live Preview table widget, …) with its fallback.
+- `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). For an Obsidian `Editor`, use `changeTargetFor(editor)`: it falls back to `editor.transaction` when there is no CodeMirror view, so no command needs its own fallback. `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
+- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, `focusChangeEffect`, the Live Preview table widget and its classes, scrolling to an annotation, …) with its fallback.
 - `src/selection-mapping/`: `mapSelection(text, slices, range)` maps a DOM Range over rendered blocks (each a `RenderedSlice`: element plus source range) to source offsets, snapped out of links, formatting runs and Annotation syntax.
 - `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Reading view sections and Live Preview table cells), failing closed when braces don't line up.
 - `src/export/`: PDF export and Copy as HTML (renders with no section info, see `isExportRender` in guards). `cleanExport` in `src/rendered/export.ts` finds each Annotation from its rendered footnote reference, removes the braces and, with "Strip annotations from exports", the Comments too.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
-- `src/live-preview/`: Live Preview decorations and the badge.
+- `src/live-preview/`: Live Preview decorations. `src/badge.ts` makes every badge. `src/drag/`: annotate on drag, with `track.ts` the pointer loop shared by the editor and Reading view.
 - `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
 - `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
-- `src/sidebar/`: the annotations sidebar (`ItemView`), built from the core's `outline(doc, noteName)`. Edits go to the open editor, else through `Vault.process`. `src/status-bar/`: the "N annotations" count and its setting.
+- `src/sidebar/`: the annotations sidebar (`ItemView`), built from the core's `outline(doc, noteName)`: `tracked-note.ts` (which note), `outline-list.ts` (drawing), `comment-editing.ts` and `actions.ts`. Edits go to the open editor, else through `Vault.process`. `src/status-bar/`: the "N annotations" count and its setting.
 - `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
 - `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
 

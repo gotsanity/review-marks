@@ -122,18 +122,13 @@ describe('Annotate on drag in Reading view', () => {
 		await openInReading();
 	});
 
-	// Before the harness closes the note: a comment box or a popover (the pointer ends on the new
-	// Target) left open would outlive it and cover the next test's note.
+	// Before the harness closes the note: a comment box left open would outlive it and cover the
+	// next test's note. A popover closes by itself once its Target or note goes.
 	afterEach(async () => {
 		if (await $('.rm-cbox').isExisting()) {
 			await browser.keys('Escape');
 			await $('.rm-cbox').waitForExist({ reverse: true });
 		}
-		// A popover whose Target went away under the pointer (cancelled) only closes once the
-		// pointer leaves the popover itself.
-		if (await $('.rm-popover').isExisting()) await $('.rm-popover').moveTo();
-		await browser.action('pointer').move({ x: 1, y: 1 }).perform();
-		await $('.rm-popover').waitForExist({ reverse: true });
 	});
 
 	it('maps a drag across bold text, switches to Live Preview at the same height and opens the comment box', async () => {
@@ -169,7 +164,7 @@ describe('Annotate on drag in Reading view', () => {
 		const { start, end } = await pointsIn('answer', '42');
 		await drag(Key.Alt, start, end);
 
-		await browser.waitUntil(async () => (await notices()).some((n) => n.includes("a Target can't start or end in code.")));
+		await browser.waitUntil(async () => (await notices()).some((n) => n.includes("an annotation can't start or end in code.")));
 		expect(await mode()).toBe('preview');
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await fileText()).toBe(TEXT);
@@ -179,7 +174,7 @@ describe('Annotate on drag in Reading view', () => {
 		const { start, end } = await pointsIn('Doreth', 'failure');
 		await drag(Key.Alt, start, end);
 
-		await browser.waitUntil(async () => (await notices()).some((n) => n.includes('a Target must stay within one table cell.')));
+		await browser.waitUntil(async () => (await notices()).some((n) => n.includes('an annotation must stay within one table cell.')));
 		expect(await mode()).toBe('preview');
 		expect(await fileText()).toBe(TEXT);
 	});

@@ -3,21 +3,13 @@
 import type { Editor, Plugin } from 'obsidian';
 import { notify } from '../notice';
 import { annotationAt, isRefusal, parse, planRemove } from '../core';
-import { EditorChangeTarget } from '../apply/editor-target';
-import { editorViewOf } from '../guards';
+import { changeTargetFor } from '../apply/editor-target';
 import { whenAnnotatable } from './annotatable';
 
 /** Removes the Annotation with this ID from the note in the editor. */
 export async function removeAnnotation(editor: Editor, id: string): Promise<void> {
-	const view = editorViewOf(editor);
-	if (view) {
-		const plan = await new EditorChangeTarget(view).apply((doc) => planRemove(doc, id));
-		if (isRefusal(plan)) notify(plan.message);
-		return;
-	}
-	const plan = planRemove(parse(editor.getValue()), id);
+	const plan = await changeTargetFor(editor).apply((doc) => planRemove(doc, id));
 	if (isRefusal(plan)) notify(plan.message);
-	else editor.transaction({ changes: plan.changes.map((c) => ({ from: editor.offsetToPos(c.from), to: editor.offsetToPos(c.to), text: c.insert })) });
 }
 
 /** The ID of the Annotation at the editor's cursor: on its Target, marker or definition. */

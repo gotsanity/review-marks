@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outline, targetExcerpt } from './outline';
-import { parse } from './parse';
+import { outline, parse, targetExcerpt } from './index';
 
 const of = (text: string, note = 'Note') => outline(parse(text), note);
 

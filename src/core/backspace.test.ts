@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backspaceAt } from './backspace';
-import { applyChanges } from './changes';
-import { parse } from './parse';
+import { applyChanges, backspaceAt, parse } from './index';
 
 /** Presses Backspace at `|` and returns the text with `|` at the new caret, or null for a normal Backspace. */
 function press(marked: string): { text: string; kind: string } | null {

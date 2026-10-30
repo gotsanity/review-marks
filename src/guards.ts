@@ -1,8 +1,8 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
 import type { Editor, MarkdownPreviewView, MarkdownView } from 'obsidian';
-import type { ChangeDesc, StateEffect } from '@codemirror/state';
+import type { ChangeDesc, EditorState, Extension, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { isDelimiterRow, isTableLine, tableCells, type CellRange } from './core';
+import { isDelimiterRow, isTableLine, lineOfOffset, lineStarts, normalizeLineEndings, tableCells, type CellRange } from './core';
 
 /**
  * The CodeMirror view behind an Obsidian editor. `editor.cm` is untyped but documented in
@@ -71,32 +71,76 @@ export function tableWidgetCells(widget: HTMLElement, rows: readonly TableRowSou
 	return out;
 }
 
+const TABLE_WIDGET = '.cm-table-widget';
+
+/** The Live Preview table widget `el` is in, if any. */
+export function tableWidgetAt(el: Element): HTMLElement | null {
+	return el.closest<HTMLElement>(TABLE_WIDGET);
+}
+
+/** Is `el` part of a table widget's own controls (its row and column drag handles), not cell content? */
+export function isTableWidgetChrome(el: Element): boolean {
+	return el.closest('.table-row-drag-handle, .table-col-drag-handle') !== null;
+}
+
+/** The cells of one table widget of `view`, or null if it doesn't match the source or CodeMirror no longer tracks it. */
+export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell[] | null {
+	const doc = view.state.doc;
+	try {
+		const first = doc.lineAt(view.posAtDOM(widget));
+		if (!isTableLine(first.text) || (first.number > 1 && isTableLine(doc.line(first.number - 1).text))) return null;
+		const rows: TableRowSource[] = [];
+		for (let n = first.number; n <= doc.lines; n++) {
+			const line = doc.line(n);
+			if (!isTableLine(line.text)) break;
+			if (!isDelimiterRow(line.text)) rows.push({ from: line.from, text: line.text });
+		}
+		return tableWidgetCells(widget, rows);
+	} catch {
+		// posAtDOM throws for a widget CodeMirror no longer tracks.
+		return null;
+	}
+}
+
 /** The table widgets in a Live Preview editor, each with its cells, skipping any that don't match the source. */
 export function liveTableCells(view: EditorView): RenderedCell[][] {
-	const doc = view.state.doc;
 	const out: RenderedCell[][] = [];
-	for (const widget of Array.from(view.contentDOM.querySelectorAll<HTMLElement>('.cm-table-widget'))) {
-		try {
-			const first = doc.lineAt(view.posAtDOM(widget));
-			if (!isTableLine(first.text) || (first.number > 1 && isTableLine(doc.line(first.number - 1).text))) continue;
-			const rows: TableRowSource[] = [];
-			for (let n = first.number; n <= doc.lines; n++) {
-				const line = doc.line(n);
-				if (!isTableLine(line.text)) break;
-				if (!isDelimiterRow(line.text)) rows.push({ from: line.from, text: line.text });
-			}
-			const cells = tableWidgetCells(widget, rows);
-			if (cells) out.push(cells);
-		} catch {
-			// posAtDOM throws for a widget CodeMirror no longer tracks; skip it.
-		}
+	for (const widget of Array.from(view.contentDOM.querySelectorAll<HTMLElement>(TABLE_WIDGET))) {
+		const cells = widgetCells(view, widget);
+		if (cells) out.push(cells);
 	}
 	return out;
 }
 
 /** Is this editor one of the small editors Obsidian opens inside a table cell? */
 export function isTableCellEditor(view: EditorView): boolean {
-	return view.dom.parentElement?.closest('.cm-table-widget') != null;
+	return view.dom.parentElement?.closest(TABLE_WIDGET) != null;
+}
+
+// Drags starting on these keep their own behaviour: embeds are rendered notes, not this note's
+// text (a Live Preview table is drawn as an embed block too, but is ours), the badge belongs to an
+// existing Annotation, and the comment box is a text field.
+const OWN_DRAG = `.cm-embed-block:not(${TABLE_WIDGET}), .markdown-embed, .internal-embed, .rm-badge, .rm-cbox`;
+
+/** Does a drag starting on `el` keep its own behaviour rather than annotate? */
+export function keepsOwnDrag(el: Element): boolean {
+	return el.closest(OWN_DRAG) !== null;
+}
+
+// ---------- Focus ----------
+
+/**
+ * An extension that turns the editor's focus changes into `effect`, through
+ * `EditorView.focusChangeEffect` (@codemirror/view 6.13). Without it, no extension: callers then
+ * rely on comparing with `view.hasFocus` after updates.
+ */
+export function focusChangeTracking(
+	effect: (focusing: boolean) => StateEffect<unknown>,
+	cm: { focusChangeEffect?: unknown } = EditorView,
+): Extension {
+	const facet = cm.focusChangeEffect as typeof EditorView.focusChangeEffect | undefined;
+	if (!facet || typeof facet.of !== 'function') return [];
+	return facet.of((_state: EditorState, focusing: boolean) => effect(focusing));
 }
 
 /**
@@ -116,6 +160,7 @@ export function scrollSnapshotThrough(view: EditorView, changes: ChangeDesc): St
  */
 export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: string): void {
 	preview.applyScroll(Math.max(0, line - 2));
+	if (!id) return;
 	const win = preview.containerEl.win;
 	let tries = 0;
 	const find = () => {
@@ -128,6 +173,40 @@ export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: 
 		if (++tries < 10) win.requestAnimationFrame(find);
 	};
 	win.requestAnimationFrame(find);
+}
+
+const nextFrame = (win: Window) => new Promise<void>((resolve) => win.requestAnimationFrame(() => resolve()));
+
+/**
+ * Scrolls the note in `view` to the Target that starts at source offset `at`. In Reading view the
+ * Target is centred and, given its `id`, flashes (see `scrollPreviewTo`). In the editor its line is
+ * centred, or put at screen height `top` when given; line heights are estimates until drawn, so
+ * that is measured again for a few frames. Doesn't move the cursor.
+ */
+export async function scrollToAnnotation(view: MarkdownView, at: number, options: { id?: string; top?: number } = {}): Promise<void> {
+	if (view.getMode() === 'preview') {
+		const line = lineOfOffset(lineStarts(normalizeLineEndings(view.getViewData())), at);
+		scrollPreviewTo(view.previewMode, line, options.id ?? '');
+		return;
+	}
+	const { editor } = view;
+	const cm = editorViewOf(editor);
+	if (!cm) {
+		const pos = editor.offsetToPos(at);
+		editor.scrollIntoView({ from: pos, to: pos }, true);
+		return;
+	}
+	const { top } = options;
+	if (top === undefined) {
+		cm.dispatch({ effects: EditorView.scrollIntoView(at, { y: 'center' }) });
+		return;
+	}
+	const win = cm.dom.ownerDocument.defaultView ?? window;
+	for (let i = 0; i < 4; i++) {
+		await nextFrame(win);
+		const now = cm.coordsAtPos(at, 1)?.top ?? cm.documentTop + cm.lineBlockAt(at).top;
+		if (Math.abs(now - top) > 1) cm.scrollDOM.scrollTop += now - top;
+	}
 }
 
 // ---------- Annotate on drag in Reading view ----------

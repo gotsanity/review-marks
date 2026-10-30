@@ -1,6 +1,7 @@
 // Other plugins' syntax in a note: Templater tags, whose braces are JavaScript, and Excalidraw
 // drawings, which the plugin leaves alone.
 import { codeMask } from './code';
+import { isReviewLabel } from './footnotes';
 import { blockPrefixLength } from './sections';
 
 /** Ranges `[from, to)` of Templater tags `<% … %>` outside code, delimiters included. Unclosed tags are text. */
@@ -119,16 +120,82 @@ function lineFields(text: string, bracketed: readonly SyntaxRange[]): SyntaxRang
 	return out;
 }
 
-const LINKS = new RegExp(
-	[
-		/!?\[\[[^\]\n]*\]\]/.source, // wikilinks and embeds
-		/!?\[(?:[^[\]\n]|\[[^[\]\n]*\])*\]\([^()\n]*(?:\([^()\n]*\)[^()\n]*)*\)/.source, // [text](url), images
-		/<[a-z][a-z0-9+.-]*:[^<>\s]*>/.source, // <autolinks>
-		/https?:\/\/[^\s<>()[\]{}]*[^\s<>()[\]{}.,;:!?'"*_~]/.source, // bare URLs
-		/\[\^(?!r\d+\])[^\]\s]+\](?!:)/.source, // author footnote references; review markers are ours
-	].join('|'),
-	'gi',
-);
+export type LinkKind = 'embed' | 'wikilink' | 'image' | 'markdown-link' | 'autolink' | 'url' | 'footnote';
+
+/** A link-like span of the note and the part of it that renders as text. */
+export interface LinkSpan {
+	kind: LinkKind;
+	from: number;
+	to: number;
+	/** The rendered text `[textFrom, textTo)`: a wikilink's alias, a link's text, a footnote label. Empty for embeds and images. */
+	textFrom: number;
+	textTo: number;
+	/** A footnote reference with a review label (`[^rN]`), which is Annotation syntax, not a link. */
+	review: boolean;
+}
+
+const MARKDOWN_TEXT = /(?:[^[\]\n]|\[[^[\]\n]*\])*/.source;
+const LINK_PATTERNS: [LinkKind, string][] = [
+	['embed', /!\[\[[^\]\n]*\]\]/.source],
+	['wikilink', /\[\[[^\]\n]*\]\]/.source],
+	['image', `!\\[${MARKDOWN_TEXT}\\]\\([^()\\n]*(?:\\([^()\\n]*\\)[^()\\n]*)*\\)`],
+	['markdown-link', `\\[${MARKDOWN_TEXT}\\]\\([^()\\n]*(?:\\([^()\\n]*\\)[^()\\n]*)*\\)`],
+	['autolink', /<[a-z][a-z0-9+.-]*:[^<>\s]*>/.source],
+	['url', /https?:\/\/[^\s<>()[\]{}]*[^\s<>()[\]{}.,;:!?'"*_~]/.source],
+	['footnote', /\[\^[^\]\s]+\](?!:)/.source],
+];
+const LINKS = new RegExp(LINK_PATTERNS.map(([, p]) => `(${p})`).join('|'), 'gi');
+const LINK_TEXT = new RegExp(`\\[(${MARKDOWN_TEXT})\\]\\(`, 'y');
+const ALIAS_BAR = /\\?\|/;
+
+/** The rendered text of a link-like span of `kind` at `[from, to)`. */
+function linkText(text: string, kind: LinkKind, from: number, to: number): [number, number] {
+	switch (kind) {
+		case 'wikilink': {
+			const bar = ALIAS_BAR.exec(text.slice(from + 2, to - 2));
+			return [bar ? from + 2 + bar.index + bar[0].length : from + 2, to - 2];
+		}
+		case 'markdown-link': {
+			LINK_TEXT.lastIndex = from;
+			const m = LINK_TEXT.exec(text);
+			return [from + 1, from + 1 + (m?.[1]?.length ?? 0)];
+		}
+		case 'autolink':
+			return [from + 1, to - 1];
+		case 'url':
+			return [from, to];
+		case 'footnote':
+			return [from + 2, to - 1];
+		default:
+			return [from, from];
+	}
+}
+
+/**
+ * Wikilinks, embeds, Markdown links and images, autolinks, bare URLs and footnote references
+ * outside code, in order.
+ */
+export function linkSpans(text: string, inCode: Uint8Array = codeMask(text)): LinkSpan[] {
+	const out: LinkSpan[] = [];
+	for (const m of text.matchAll(LINKS)) {
+		if (inCode[m.index]) continue;
+		const group = m.slice(1).findIndex((g) => g !== undefined);
+		const kind = (LINK_PATTERNS[group] as [LinkKind, string])[0];
+		const from = m.index;
+		const to = from + m[0].length;
+		const [textFrom, textTo] = linkText(text, kind, from, to);
+		out.push({ kind, from, to, textFrom, textTo, review: kind === 'footnote' && isReviewLabel(text.slice(textFrom, textTo)) });
+	}
+	return out;
+}
+
+/** Obsidian `%% %%` comments and HTML comments outside code, which never render. */
+export function hiddenComments(text: string, inCode: Uint8Array = codeMask(text)): { from: number; to: number }[] {
+	return [...text.matchAll(/%%[\s\S]*?%%|<!--[\s\S]*?-->/g)]
+		.filter((m) => !inCode[m.index])
+		.map((m) => ({ from: m.index, to: m.index + m[0].length }));
+}
+
 const HTML = /<!--[\s\S]*?-->|<\/?[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/gi;
 
 /**
@@ -146,7 +213,9 @@ export function syntaxRanges(text: string): SyntaxRange[] {
 		...regexRanges(text, /\{\{[^{}\n]*\}\}/g, 'template'),
 		...bracketed,
 		...lineFields(text, bracketed),
-		...regexRanges(text, LINKS, 'link'),
+		...linkSpans(text, inCode)
+			.filter((l) => !l.review)
+			.map((l) => ({ kind: 'link' as const, from: l.from, to: l.to })),
 		...regexRanges(text, HTML, 'html'),
 	];
 	return all.filter((r) => !inCode[r.from]);
