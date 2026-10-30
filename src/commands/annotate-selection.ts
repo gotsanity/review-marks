@@ -1,6 +1,7 @@
 // "Annotate selection": the new Annotation appears at once (outside the undo history), the inline
 // comment box opens under it, and saving writes Annotation and Comment as one undo step.
 import { Notice, type Editor, type Plugin } from 'obsidian';
+import type { EditorView } from '@codemirror/view';
 import { isRefusal, parse, planCreate, type Refusal } from '../core';
 import { cancelProvisional, commitProvisional, startProvisional } from '../apply/provisional';
 import { openCommentBox } from '../comment-box/comment-box';
@@ -26,6 +27,15 @@ export function annotateSelection(editor: Editor, settings: ReviewMarksSettings)
 		return;
 	}
 
+	annotateRange(view, from, to, settings);
+}
+
+/**
+ * Creates an Annotation over `[from, to)` of the view's doc, outside the undo history, and opens
+ * the comment box for it. Saving writes it as one undo step; cancelling leaves no trace.
+ */
+export function annotateRange(view: EditorView, from: number, to: number, settings: ReviewMarksSettings): void {
+	const placement = settings.placement;
 	const plan = planCreate(parse(view.state.doc.toString()), { from, to, comment: '', placement });
 	if (isRefusal(plan)) {
 		showRefusal(plan);

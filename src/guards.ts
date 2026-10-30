@@ -1,5 +1,6 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
-import type { Editor } from 'obsidian';
+import type { Editor, MarkdownPreviewView } from 'obsidian';
+import type { ChangeDesc, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isDelimiterRow, isTableLine, tableCells, type CellRange } from './core';
 
@@ -96,4 +97,43 @@ export function liveTableCells(view: EditorView): RenderedCell[][] {
 /** Is this editor one of the small editors Obsidian opens inside a table cell? */
 export function isTableCellEditor(view: EditorView): boolean {
 	return view.dom.parentElement?.closest('.cm-table-widget') != null;
+}
+
+/**
+ * An effect that keeps the current scroll position through `changes`, for the transaction that
+ * makes them, so edits above the viewport don't shift the note. Undefined without
+ * `scrollSnapshot` (@codemirror/view 6.22).
+ */
+export function scrollSnapshotThrough(view: EditorView, changes: ChangeDesc): StateEffect<unknown> | undefined {
+	if (typeof view.scrollSnapshot !== 'function') return undefined;
+	return view.scrollSnapshot().map(changes);
+}
+
+/**
+ * Scrolls Reading view to a source line (0-based) and, once the Target with this ID is rendered,
+ * centres and flashes it. `applyScroll` is public but its unit (a source line) is undocumented,
+ * so the decorated Target's `scrollIntoView` does the real positioning when it can be found.
+ */
+export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: string): void {
+	preview.applyScroll(Math.max(0, line - 2));
+	const win = preview.containerEl.win;
+	let tries = 0;
+	const find = () => {
+		const el = preview.containerEl.querySelector(`.rm-target[data-rm-id="${id}"]`);
+		if (el instanceof HTMLElement) {
+			el.scrollIntoView({ block: 'center' });
+			flash(el);
+			return;
+		}
+		if (++tries < 10) win.requestAnimationFrame(find);
+	};
+	win.requestAnimationFrame(find);
+}
+
+function flash(el: HTMLElement): void {
+	el.removeClass('rm-flash');
+	// Restart the animation if it is still running from a previous jump.
+	void el.offsetWidth;
+	el.addClass('rm-flash');
+	el.win.setTimeout(() => el.removeClass('rm-flash'), 1500);
 }
