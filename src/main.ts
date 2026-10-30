@@ -3,6 +3,9 @@ import { Platform, Plugin } from 'obsidian';
 import { provisionalField } from './apply/provisional';
 import { registerAnnotateSelection } from './commands/annotate-selection';
 import { registerContextMenu } from './commands/context-menu';
+import { registerEditComment } from './commands/edit-comment';
+import { registerSidebar } from './sidebar/sidebar';
+import { registerStatusBar, statusBarSettings } from './status-bar/status-bar';
 import { registerMoveComments } from './commands/move-comments';
 import { registerNavigation } from './commands/navigate';
 import { registerRemoveAnnotation } from './commands/remove-annotation';
@@ -50,6 +53,10 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerRemoveAnnotation(this);
 		registerNavigation(this);
 		registerContextMenu(this, settings);
+		registerEditComment(this, settings);
+		registerSidebar(this, settings);
+		registerStatusBar(this, this.store);
+		this.settingsTab.addSection(SECTION_ORDER.statusBar, statusBarSettings);
 
 		this.settingsTab.addSection(SECTION_ORDER.placement, (el, store) => {
 			addPlacementSetting(el, store.current.placement, (placement) => store.update({ placement }));
