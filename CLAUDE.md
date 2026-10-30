@@ -20,10 +20,13 @@ One folder or file per module, so features land as new files:
 - `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
 - `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, the Live Preview table widget, …) with its fallback.
 - `src/selection-mapping/`: `mapSelection(text, slices, range)` maps a DOM Range over rendered blocks (each a `RenderedSlice`: element plus source range) to source offsets, snapped out of links, formatting runs and Annotation syntax.
-- `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Live Preview table cells), failing closed when braces don't line up.
+- `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Reading view sections and Live Preview table cells), failing closed when braces don't line up.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
 - `src/live-preview/`: Live Preview decorations and the badge.
-- `src/commands/`: one file per command. `src/settings.ts`: settings and defaults. `src/main.ts`: wiring only.
+- `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
+- `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
+- `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
+- `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
 
 ## Testing
 

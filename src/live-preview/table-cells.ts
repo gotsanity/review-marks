@@ -24,7 +24,8 @@ function decorateTables(view: EditorView, settings: ReviewMarksSettings): void {
 	const typing = provisionalId(state);
 	const text = state.doc.toString();
 	const badgeOf = (a: Annotation) => badgeText(a.id, a.definition?.comment ?? null, typing === a.id, (c) => excerpt(c, settings.excerptLength));
-	const badge = (a: Annotation) => createSpan({ cls: 'rm-badge', text: badgeOf(a), attr: { 'data-rm-id': a.id } });
+	const badge = (a: Annotation) =>
+		settings.showBadge ? createSpan({ cls: 'rm-badge', text: badgeOf(a), attr: { 'data-rm-id': a.id } }) : null;
 
 	for (const cells of liveTableCells(view)) {
 		for (const cell of cells) {
@@ -37,7 +38,7 @@ function decorateTables(view: EditorView, settings: ReviewMarksSettings): void {
 				}
 				continue;
 			}
-			const signature = [text.slice(cell.from, cell.to), ...hits.map(badgeOf)].join('\u0000');
+			const signature = [text.slice(cell.from, cell.to), String(settings.showBadge), ...hits.map(badgeOf)].join('\u0000');
 			// Obsidian re-renders a cell after it is edited, dropping the decorations but not the signature.
 			if (cell.el.dataset[SIGNATURE] === signature && cell.el.querySelector('.rm-hidden')) continue;
 			if (decorateRendered(cell.el, text, cell, hits, badge)) cell.el.dataset[SIGNATURE] = signature;

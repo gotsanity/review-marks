@@ -1,7 +1,8 @@
 // Live Preview: Targets are highlighted, `{` and `}[^rN]` are hidden unless the cursor is in the
 // Annotation, and a badge shows the start of the Comment. A StateField rather than a ViewPlugin,
 // because a Target's syntax can sit outside the visible ranges and decorations must not lag.
-import { editorLivePreviewField } from 'obsidian';
+import { MarkdownView, editorLivePreviewField, type App } from 'obsidian';
+import { editorViewOf } from '../guards';
 import { Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { blockPrefixLength, excerpt, isTableLine, parse, type Annotation } from '../core';
@@ -87,6 +88,8 @@ function buildDecorations(state: EditorState, settings: () => ReviewMarksSetting
 		}
 		if (revealed) {
 			out.push(syntaxMark.range(a.open, a.open + 1), syntaxMark.range(a.close, a.markerEnd));
+		} else if (!settings().showBadge) {
+			out.push(hidden.range(a.open, a.open + 1), hidden.range(a.close, a.markerEnd));
 		} else {
 			const text = badgeText(a.id, a.definition?.comment ?? null, typing === a.id, (c) => excerpt(c, excerptLength));
 			out.push(
@@ -116,4 +119,13 @@ export function livePreview(settings: () => ReviewMarksSettings): Extension {
 		provide: (f) => EditorView.decorations.from(f),
 	});
 	return [annotationsField, focusTracking, cellEditorTracking, Prec.highest(decorations)];
+}
+
+/** Rebuilds the decorations of every open editor, for example after a settings change. */
+export function refreshLivePreviews(app: App): void {
+	app.workspace.iterateAllLeaves((leaf) => {
+		if (leaf.view instanceof MarkdownView) {
+			editorViewOf(leaf.view.editor)?.dispatch({ effects: refreshLivePreview.of(null) });
+		}
+	});
 }
