@@ -49,6 +49,7 @@ export type RefusalReason =
 	| 'empty-selection'
 	| 'crosses-blocks'
 	| 'crosses-table-cells'
+	| 'in-code'
 	| 'in-definition'
 	| 'overlaps-annotation'
 	| 'unbalanced-braces'

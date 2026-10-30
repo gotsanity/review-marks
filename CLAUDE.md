@@ -21,6 +21,7 @@ One folder or file per module, so features land as new files:
 - `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, the Live Preview table widget, …) with its fallback.
 - `src/selection-mapping/`: `mapSelection(text, slices, range)` maps a DOM Range over rendered blocks (each a `RenderedSlice`: element plus source range) to source offsets, snapped out of links, formatting runs and Annotation syntax.
 - `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Reading view sections and Live Preview table cells), failing closed when braces don't line up.
+- `src/export/`: PDF export and Copy as HTML (renders with no section info, see `isExportRender` in guards). `cleanExport` in `src/rendered/export.ts` finds each Annotation from its rendered footnote reference, removes the braces and, with "Strip annotations from exports", the Comments too.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
 - `src/live-preview/`: Live Preview decorations and the badge.
 - `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.

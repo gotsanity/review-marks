@@ -18,6 +18,8 @@ export interface ReviewMarksSettings {
 	showStatusBar: boolean;
 	/** The Target highlight, `#rrggbb`, or empty for the theme's highlight colour (src/highlight.ts). */
 	highlightColour: string;
+	/** PDF export and Copy as HTML show Targets as plain text, with no Comments. */
+	stripFromExports: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: ReviewMarksSettings = {
 	dragTrigger: DEFAULT_DRAG_TRIGGER,
 	showStatusBar: true,
 	highlightColour: '',
+	stripFromExports: false,
 };
 
 const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -54,6 +57,7 @@ export function settingsFrom(data: unknown): ReviewMarksSettings {
 			typeof stored.highlightColour === 'string' && /^#[0-9a-f]{6}$/i.test(stored.highlightColour)
 				? stored.highlightColour.toLowerCase()
 				: DEFAULT_SETTINGS.highlightColour,
+		stripFromExports: bool(stored.stripFromExports, DEFAULT_SETTINGS.stripFromExports),
 	};
 }
 

@@ -1,3 +1,4 @@
+import { codeMask } from './code';
 import { definitionText } from './definition';
 import { blockPrefixLength, headingStarts, isTableLine } from './sections';
 import { cellBorders } from './tables';
@@ -41,7 +42,7 @@ export function nextId(text: string): string {
 	return `r${max + 1}`;
 }
 
-/** Trims the selection and moves its start past list, quote and heading markers. */
+/** Trims the selection, moves its start past list, quote and heading markers, and its end back before them. */
 function adjustSelection(text: string, from: number, to: number): { from: number; to: number } {
 	let f = Math.min(from, to);
 	let t = Math.max(from, to);
@@ -55,6 +56,11 @@ function adjustSelection(text: string, from: number, to: number): { from: number
 		f = lineStartOf(text, f) + prefix;
 		trim();
 	}
+	const endLine = lineStartOf(text, t);
+	if (endLine > f && t - endLine <= blockPrefixLength(lineAt(text, t))) {
+		t = endLine;
+		trim();
+	}
 	return { from: f, to: Math.max(f, t) };
 }
 
@@ -64,15 +70,16 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	if (f >= t) return refuse('empty-selection', 'select the text to annotate first.');
 
 	const span = text.slice(f, t);
-	if (/\n[ \t]*\n/.test(span)) return refuse('crosses-blocks', 'a Target must stay within one paragraph.');
-	for (let nl = span.indexOf('\n'); nl >= 0; nl = span.indexOf('\n', nl + 1)) {
-		const next = lineAt(text, f + nl + 1);
-		if (blockPrefixLength(next) > 0 || isTableLine(next)) {
-			return refuse('crosses-blocks', 'a Target must stay within one paragraph.');
-		}
+	const inCode = codeMask(text);
+	const onCodeLine = (at: number) => inCode[lineStartOf(text, at)] === 1;
+	const insideSpan = (at: number) => inCode[at - 1] === 1 && inCode[at] === 1;
+	if (onCodeLine(f) || onCodeLine(t - 1) || insideSpan(f) || insideSpan(t)) {
+		return refuse('in-code', "a Target can't start or end in code.");
 	}
-	if (headingStarts(text).includes(lineStartOf(text, f)) && span.includes('\n')) {
-		return refuse('crosses-blocks', 'a Target must stay within one paragraph.');
+	if (span.includes('\n')) {
+		for (let at = lineStartOf(text, f); at < t; at = text.indexOf('\n', at) + 1 || t) {
+			if (isTableLine(lineAt(text, at))) return refuse('crosses-blocks', "a Target can't span table rows.");
+		}
 	}
 	if (isTableLine(lineAt(text, f)) && cellBorders(span).length > 0) {
 		return refuse('crosses-table-cells', 'a Target must stay within one table cell.');
@@ -97,6 +104,7 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	let depth = 0;
 	for (let i = f; i < t; i++) {
 		const c = text[i];
+		if (inCode[i]) continue;
 		if (c === '\\') i++;
 		else if (c === '{') depth++;
 		else if (c === '}' && --depth < 0) break;
@@ -110,7 +118,12 @@ const isWhitespace = (c: string | undefined) => c !== undefined && /\s/.test(c);
 /** Where the new definition goes, as one insert. `targetEnd` is where the Target ends. */
 export function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement: Placement, def: string): Change {
 	const { text } = doc;
-	const reviewDefs = [...doc.annotations.flatMap((a) => (a.definition ? [a.definition] : [])), ...doc.orphanDefinitions];
+	// Headings and `[^rN]:` lines in fenced code or frontmatter are not markup.
+	const inCode = codeMask(text);
+	const reviewDefs = [
+		...doc.annotations.flatMap((a) => (a.definition ? [a.definition] : [])),
+		...doc.orphanDefinitions,
+	].filter((d) => !inCode[d.from]);
 	const reviewDefEnds = new Set(reviewDefs.map((d) => d.to));
 
 	/** Joins the list of review definitions ending at `end`, before the first one whose marker comes later. */
@@ -128,7 +141,7 @@ export function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement
 	if (placement === 'end-of-note' && reviewDefEnds.size > 0) return joinList(Math.max(...reviewDefEnds));
 
 	const sectionEnd =
-		placement === 'end-of-section' ? (headingStarts(text).find((h) => h > targetEnd) ?? text.length) : text.length;
+		placement === 'end-of-section' ? (headingStarts(text).find((h) => h > targetEnd && !inCode[h]) ?? text.length) : text.length;
 	let at = sectionEnd;
 	while (at > targetEnd && isWhitespace(text[at - 1])) at--;
 
@@ -145,8 +158,9 @@ export function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement
 }
 
 /**
- * Plans a new Annotation over a selection: `{` before the Target, `}[^rN]` after it, and the
- * definition at the end of the Target's section (before the next heading of any level, among any
+ * Plans a new Annotation over a selection, which may span blocks or sit in a heading but can't
+ * start or end in code: `{` before the Target, `}[^rN]` after it, and the definition at the end
+ * of the section where the Target ends (before the next heading of any level, among any
  * review definitions already there in the reading order of their markers) or at the end of the note.
  * The new ID is the highest + 1.
  */

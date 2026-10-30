@@ -85,8 +85,38 @@ describe('parse: Targets', () => {
 		]);
 	});
 
-	it('keeps a Target within one block: a blank line drops an open {', () => {
-		expect(parse('a {b\n\nc}[^r1] d').annotations).toEqual([]);
+	it('spans paragraphs: a Target runs from { to }[^rN] across blank lines', () => {
+		expect(parse('a {b\n\nc}[^r1] d').annotations[0]).toMatchObject({ open: 2, close: 7, markerEnd: 13 });
+	});
+
+	it('spans list items, and a heading into a paragraph', () => {
+		expect(parse('- {one\n- two}[^r1]\n').annotations[0]).toMatchObject({ open: 2, close: 12 });
+		expect(parse('## {Head\n\nBody}[^r1]\n').annotations[0]).toMatchObject({ open: 3, close: 14 });
+	});
+
+	it('finds a Target inside a heading', () => {
+		const text = '### Scene 3: {Call of the Void}[^r12] (~00:41)\n';
+		expect(parse(text).annotations[0]).toMatchObject({ id: 'r12', open: 13, close: 30 });
+	});
+
+	it('ignores braces in inline code', () => {
+		expect(parse('Run `f{x` on {it}[^r1].').annotations[0]).toMatchObject({ open: 13, close: 16 });
+		expect(parse('Run ``{it}[^r1]`` here.').annotations).toEqual([]);
+	});
+
+	it('ignores braces in fenced code and frontmatter', () => {
+		expect(parse('```\n{a}[^r1]\n```\n').annotations).toEqual([]);
+		expect(parse('---\ntitle: {a}[^r1]\n---\nBody.\n').annotations).toEqual([]);
+		expect(parse('~~~js\nconst o = {\n~~~\n\n{b}[^r2]\n').annotations[0]).toMatchObject({ id: 'r2', open: 23 });
+	});
+
+	it('spans a code block whose braces are its own', () => {
+		const text = '{Before.\n\n```\n} {\n```\n\nAfter.}[^r1]\n';
+		expect(parse(text).annotations[0]).toMatchObject({ open: 0, close: text.indexOf('}[^r1]') });
+	});
+
+	it('leaves an unmatched { in an earlier paragraph as plain text', () => {
+		expect(parse('a { b\n\nc {d}[^r1]').annotations[0]).toMatchObject({ open: 9, close: 11 });
 	});
 
 	it('allows a Target across a soft line break within a paragraph', () => {
