@@ -1,7 +1,7 @@
 // PROTOTYPE (throwaway). Annotations sidebar: an ItemView listing every Annotation in the active note,
 // grouped under the heading section its Target starts in, with the Comment editable in place.
 import { App, Editor, ItemView, MarkdownView, Notice, Platform, Plugin, Scope, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { Annotation, analyze, blockPrefixLength, headingStarts, isTableLine, normalize } from './parse';
 import { writeComment } from './commands';
 
@@ -78,7 +78,8 @@ function buildGroups(text: string, noteName: string): { roots: Group[]; orphans:
     g.total = g.anns.length + g.children.reduce((n, c) => n + c.total, 0);
     return g.total > 0;
   });
-  return { roots: prune(roots), orphans, total: anns.length };
+  // Definitions without a Target are listed but not counted.
+  return { roots: prune(roots), orphans, total: anns.length - orphans.length };
 }
 
 /** Same comment text as the modal would save: no trailing whitespace, no leading blank lines. */
@@ -229,7 +230,7 @@ export class AnnotationsView extends ItemView {
     }
     const { roots, orphans, total } = buildGroups(text, file.basename);
     this.countEl.setText(total === 1 ? '1 annotation' : `${total} annotations`);
-    if (!total) {
+    if (!total && !orphans.length) {
       this.sig = '';
       this.listEl.empty();
       this.listEl.createDiv({ cls: 'rm-sb-empty', text: 'No annotations in this note.' });
@@ -314,10 +315,15 @@ export class AnnotationsView extends ItemView {
     const el = parent.createDiv({ cls: 'rm-sb-entry' });
     el.dataset.rmId = a.id;
     const row = el.createDiv({ cls: 'rm-sb-entry-head' });
-    const tgt = row.createDiv({ cls: 'rm-sb-target', attr: { role: 'button', tabindex: '0', 'aria-label': 'Go to annotation' } });
+    const tgt = row.createDiv({ cls: 'rm-sb-target', attr: { role: 'button', tabindex: '0', 'aria-label': 'Click to show in the note, double-click to edit there' } });
     tgt.setText(a.open >= 0 ? targetExcerpt(this.text, a) : `[^${a.id}] (no target)`);
-    tgt.addEventListener('click', () => void this.jump(a.id));
-    tgt.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void this.jump(a.id); } });
+    // Click (tap): scroll the note there, focus stays here. Double-click (Enter): cursor and focus into the note.
+    tgt.addEventListener('click', () => void this.jump(a.id, false));
+    tgt.addEventListener('dblclick', () => void this.jump(a.id, true));
+    tgt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); void this.jump(a.id, true); }
+      else if (e.key === ' ') { e.preventDefault(); void this.jump(a.id, false); }
+    });
     const btn = row.createEl('button', { cls: 'rm-sb-unwrap clickable-icon', attr: { 'aria-label': 'Unwrap: remove the annotation and keep the text' } });
     setIcon(btn, 'eraser');
     btn.addEventListener('click', (e) => { e.stopPropagation(); void this.unwrap(a.id); });
@@ -358,33 +364,39 @@ export class AnnotationsView extends ItemView {
     void this.refresh();
   }
 
-  private async jump(id: string) {
+  /**
+   * Shows the Target in the note. enter = false (click, tap): only scroll there, focus stays in the
+   * sidebar (no keyboard on mobile). enter = true (double-click, Enter): cursor at the Target, editor focused.
+   */
+  private async jump(id: string, enter: boolean) {
     const file = this.file;
     if (!file) return;
     let view = this.markdownView();
     if (!view) {
       const leaf = this.app.workspace.getLeaf(false);
-      await leaf.openFile(file);
+      await leaf.openFile(file, { active: enter });
       if (!(leaf.view instanceof MarkdownView)) return;
       view = leaf.view;
-    }
+    } else if (!enter && !view.containerEl.isShown()) await this.app.workspace.revealLeaf(view.leaf);
     const text = normalize(view.editor.getValue());
     const a = analyze(text).anns.find((x) => x.id === id);
     if (!a) return;
     const at = a.open >= 0 ? a.open + 1 : a.defFrom;
     const end = a.open >= 0 ? a.close : a.defTo;
     if (Platform.isMobile) this.app.workspace.rightSplit.collapse();
-    this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
+    if (enter) this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
     if (view.getMode() === 'source') {
       const ed = view.editor;
       // @ts-expect-error Obsidian exposes the main CM6 EditorView as editor.cm.
       const cm = ed.cm as EditorView;
       const pos = ed.offsetToPos(at);
       const inTable = isTableLine(ed.getLine(pos.line));
-      // editor.focus() focuses the "active" CM, which can be a table cell's editor that is already gone.
-      cm.focus();
-      ed.setCursor(pos);
-      ed.scrollIntoView({ from: pos, to: ed.offsetToPos(end) }, true);
+      if (enter) {
+        // editor.focus() focuses the "active" CM, which can be a table cell's editor that is already gone.
+        cm.focus();
+        ed.setCursor(pos);
+        ed.scrollIntoView({ from: pos, to: ed.offsetToPos(end) }, true);
+      } else if (!inTable) cm.dispatch({ effects: EditorView.scrollIntoView(at, { y: 'center' }) });
       if (inTable) {
         // CM can't scroll to a position inside Obsidian's table widget: scroll to the table, then the cell.
         cm.scrollDOM.scrollTop = cm.lineBlockAt(at).top - cm.scrollDOM.clientHeight / 3;
@@ -393,7 +405,7 @@ export class AnnotationsView extends ItemView {
         }, 150);
       }
       // Moving the cursor into or out of a table swaps the cell editor (and focus) asynchronously.
-      window.setTimeout(() => { if (!view!.containerEl.contains(document.activeElement)) (inTable ? ed : cm).focus(); }, 50);
+      if (enter) window.setTimeout(() => { if (!view!.containerEl.contains(document.activeElement)) (inTable ? ed : cm).focus(); }, 50);
     } else {
       // Reading view: scroll by source line (MarkdownPreviewView.applyScroll), then flash the Target.
       const line = (text.slice(0, at).match(/\n/g) ?? []).length;
