@@ -35,7 +35,7 @@ describe('changeTargetFor an editor without a CodeMirror view', () => {
 	it('changes nothing on a refusal', async () => {
 		const { editor, state } = plainEditor('Plain.\n');
 		const result = await changeTargetFor(editor).apply((doc) => planRemove(doc, 'r1'));
-		expect(result).toMatchObject({ refusal: expect.any(String) });
+		expect(result).toMatchObject({ refusal: 'not-found' });
 		expect(state.text).toBe('Plain.\n');
 		expect(state.transactions).toBe(0);
 	});
