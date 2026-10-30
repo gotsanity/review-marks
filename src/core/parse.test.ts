@@ -135,3 +135,39 @@ describe('parse: Targets', () => {
 		expect(doc.annotations[0]?.definition?.comment).toBe('first');
 	});
 });
+
+describe('parse: code is not markup', () => {
+	it('does not read a [^rN]: line in fenced code or frontmatter as a definition', () => {
+		const text = '{a}[^r1]\n\n```\n[^r1]: in code\n```\n\n[^r1]: real\n';
+		expect(parse(text).annotations[0]?.definition?.comment).toBe('real');
+		expect(parse('---\nx: 1\n---\n```md\n[^r2]: sample\n```\n').orphanDefinitions).toEqual([]);
+		expect(parse('---\nnote: |\n[^r3]: yaml\n---\nBody.\n').orphanDefinitions).toEqual([]);
+	});
+});
+
+describe('parse: Templater tags', () => {
+	it('ignores braces inside <% %> when pairing Targets', () => {
+		const text = '<%* if (x) { %>\n{start of target\n<%* } %>\nend}[^r1]\n';
+		expect(parse(text).annotations[0]).toMatchObject({ id: 'r1', open: 16, close: 45 });
+	});
+
+	it('ignores Annotation syntax inside a tag', () => {
+		expect(parse('<% "{a}[^r1]" %> and {b}[^r2]').annotations.map((a) => a.id)).toEqual(['r2']);
+	});
+
+	it('reads an unclosed <% as plain text', () => {
+		expect(parse('a <% {b}[^r1]').annotations[0]).toMatchObject({ open: 5 });
+	});
+});
+
+describe('parse: Excalidraw drawings', () => {
+	it('finds nothing in a note with an excalidraw-plugin frontmatter key', () => {
+		const doc = parse('---\ntags: [x]\nexcalidraw-plugin: parsed\n---\n{Hello}[^r1] ^abcdefgh\n\n[^r2]: c\n');
+		expect(doc.annotations).toEqual([]);
+		expect(doc.orphanDefinitions).toEqual([]);
+	});
+
+	it('reads a note that only mentions Excalidraw outside its frontmatter', () => {
+		expect(parse('---\ntitle: x\n---\nexcalidraw-plugin: parsed\n{a}[^r1]').annotations).toHaveLength(1);
+	});
+});

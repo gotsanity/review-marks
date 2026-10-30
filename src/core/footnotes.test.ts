@@ -27,6 +27,11 @@ describe('footnoteListLabels', () => {
 		expect(footnoteListLabels(text, 3)).toBeNull();
 		expect(footnoteListLabels(text, 1)).toBeNull();
 	});
+
+	it('leaves the footnote list of an Excalidraw drawing alone', () => {
+		const text = '---\nexcalidraw-plugin: parsed\n---\n{a}[^r1]\n\n[^r1]: x\n';
+		expect(footnoteListLabels(text, 1)).toBeNull();
+	});
 });
 
 describe('isReviewLabel', () => {

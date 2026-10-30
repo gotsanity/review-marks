@@ -3,7 +3,7 @@
 // scrolls to the Target and it flashes.
 import { MarkdownView, type Plugin } from 'obsidian';
 import { notify } from '../notice';
-import { adjacentAnnotation, normalizeLineEndings, parse } from '../core';
+import { adjacentAnnotation, isExcalidraw, normalizeLineEndings, parse } from '../core';
 import { scrollPreviewTo } from '../guards';
 
 type Direction = 'next' | 'previous';
@@ -53,7 +53,7 @@ function goInPreview(view: MarkdownView, direction: Direction): boolean {
 
 function go(plugin: Plugin, direction: Direction, checking: boolean): boolean {
 	const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-	if (!view) return false;
+	if (!view || isExcalidraw(normalizeLineEndings(view.getViewData()))) return false;
 	if (checking) return true;
 	const moved = view.getMode() === 'preview' ? goInPreview(view, direction) : goInEditor(view, direction);
 	if (!moved) notify('this note has no annotations.');

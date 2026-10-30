@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyChanges } from './changes';
 import { parse } from './parse';
-import { planCreate } from './plan-create';
+import { nextId, planCreate } from './plan-create';
 import { isRefusal, type Placement } from './types';
 
 /** Annotates the first occurrence of `target` in `text` and returns the new text. */
@@ -131,6 +131,11 @@ describe('planCreate: Comments and IDs', () => {
 		expect(isRefusal(plan) ? plan : plan.id).toBe('r10');
 	});
 
+	it('does not count labels in code, frontmatter or Templater tags', () => {
+		const text = '---\nid: "[^r8]"\n---\n{a}[^r2] `[^r7]` <% "[^r6]" %>\n\n```\n[^r9]: x\n```\n\n[^r2]: y\n';
+		expect(nextId(text)).toBe('r3');
+	});
+
 	it('reports the caret position just after the new marker', () => {
 		const text = '# One\n\nAlpha beta gamma.\n';
 		const plan = planCreate(parse(text), { from: 13, to: 17, comment: 'c', placement: 'end-of-section' });
@@ -197,13 +202,13 @@ describe('planCreate: code is not markup when placing the definition', () => {
 	it('does not join a [^rN]: line in fenced code', () => {
 		const text = 'Alpha.\n\n```\n[^r1]: x\n```\n\nMore.\n';
 		expect(annotate(text, 'Alpha', 'c', 'end-of-note')).toBe(
-			'{Alpha}[^r2].\n\n```\n[^r1]: x\n```\n\nMore.\n\n[^r2]: c\n',
+			'{Alpha}[^r1].\n\n```\n[^r1]: x\n```\n\nMore.\n\n[^r1]: c\n',
 		);
 	});
 
 	it('does not join a [^rN]: line in fenced code that ends the section', () => {
 		const text = 'Alpha.\n\n```\n[^r1]: x\n```\n\n# Two\n';
-		expect(annotate(text, 'Alpha', 'c')).toBe('{Alpha}[^r2].\n\n```\n[^r1]: x\n```\n\n[^r2]: c\n\n# Two\n');
+		expect(annotate(text, 'Alpha', 'c')).toBe('{Alpha}[^r1].\n\n```\n[^r1]: x\n```\n\n[^r1]: c\n\n# Two\n');
 	});
 });
 
@@ -272,6 +277,113 @@ describe('planCreate: refusals', () => {
 
 	it('refuses a selection with an unmatched brace', () => {
 		expect(refusal('a { b } c', 0, 4)).toBe('unbalanced-braces');
+	});
+});
+
+describe("planCreate: other plugins' syntax", () => {
+	/** Selects the first occurrence of `selection` in `text`; returns the refusal reason and message, or 'created'. */
+	const select = (text: string, selection: string) => {
+		const from = text.indexOf(selection);
+		if (from < 0) throw new Error(`"${selection}" is not in the text`);
+		const p = planCreate(parse(text), { from, to: from + selection.length, comment: 'c', placement: 'end-of-note' });
+		return isRefusal(p) ? p : 'created';
+	};
+	const reason = (text: string, selection: string) => {
+		const r = select(text, selection);
+		return r === 'created' ? r : r.refusal;
+	};
+
+	it('refuses a Target that starts or ends inside inline or block math', () => {
+		expect(select('Text and $x^2 + y$ here.', 'and $x^2')).toEqual({
+			refusal: 'in-math',
+			message: "a Target can't start or end inside math.",
+		});
+		expect(reason('Text and $x^2 + y$ here.', 'y$ here')).toBe('in-math');
+		expect(reason('Before.\n\n$$\na^2\n$$\n\nAfter.', 'Before.\n\n$$\na')).toBe('in-math');
+	});
+
+	it('accepts a Target around whole math, and dollar signs that are not math', () => {
+		expect(reason('Text and $x^2 + y$ here.', 'and $x^2 + y$')).toBe('created');
+		expect(reason('Before.\n\n$$\na^2\n$$\n\nAfter.', 'Before.\n\n$$\na^2\n$$')).toBe('created');
+		expect(reason('It costs $5 and $6 each.', '5 and')).toBe('created');
+		expect(reason('Escaped \\$x and y$ here.', 'x and')).toBe('created');
+	});
+
+	it('refuses a Target that starts or ends inside a Templater or Templates tag', () => {
+		expect(select('Title: <% tp.file.title %> today.', 'file.title %> today')).toEqual({
+			refusal: 'in-template',
+			message: "a Target can't start or end inside a template tag.",
+		});
+		expect(reason('Made on {{date:YYYY}} by me.', 'on {{date')).toBe('in-template');
+	});
+
+	it('accepts a Target around a whole tag, and ignores tag braces when checking balance', () => {
+		expect(reason('Title: <% tp.file.title %> today.', '<% tp.file.title %>')).toBe('created');
+		expect(reason('Made on {{date}} by me.', 'on {{date}} by')).toBe('created');
+		expect(reason('<%* if (x) { %>\nShown text.\n<%* } %>\n', '<%* if (x) { %>\nShown')).toBe('created');
+	});
+
+	it('refuses a Target that starts or ends inside a bracketed Dataview field', () => {
+		expect(select('Score [rating:: 5] here.', 'rating')).toEqual({
+			refusal: 'in-dataview-field',
+			message: "a Target can't start or end inside a Dataview field.",
+		});
+		expect(reason('Score (rating:: 5) here.', '5) here')).toBe('in-dataview-field');
+		expect(reason('A [note:: see [[X]]] b.', 'X]]] b')).toBe('in-dataview-field');
+	});
+
+	it('refuses a Target that starts or ends on a whole-line Dataview field', () => {
+		expect(reason('Rating:: 5\n', 'Rating:: 5')).toBe('in-dataview-field');
+		expect(reason('- **Status**:: done\n', 'done')).toBe('in-dataview-field');
+		expect(reason('Intro.\nRating:: 5\n', 'Intro.\nRating')).toBe('in-dataview-field');
+	});
+
+	it('accepts a Target around a whole bracketed field, or across a field line', () => {
+		expect(reason('Score [rating:: 5] here.', '[rating:: 5]')).toBe('created');
+		expect(reason('Intro.\n\nRating:: 5\n\nOutro.', 'Intro.\n\nRating:: 5\n\nOutro.')).toBe('created');
+	});
+
+	it('refuses a Target that starts or ends inside a link', () => {
+		expect(select('See [[Note|the alias]] now.', 'alias]] now')).toEqual({
+			refusal: 'in-link',
+			message: "a Target can't start or end inside a link.",
+		});
+		expect(reason('See [the site](https://example.com) now.', 'See [the')).toBe('in-link');
+		expect(reason('See ![[image.png]] now.', 'image')).toBe('in-link');
+		expect(reason('Mail <https://example.com/a> now.', 'example')).toBe('in-link');
+		expect(reason('Go to https://example.com/page now.', 'example.com')).toBe('in-link');
+		expect(reason('Fact[^1] here.\n\n[^1]: Source.\n', 'Fact[^')).toBe('in-link');
+	});
+
+	it('accepts a Target around a whole link', () => {
+		expect(reason('See [[Note|the alias]] now.', '[[Note|the alias]]')).toBe('created');
+		expect(reason('See [the site](https://example.com) now.', 'See [the site](https://example.com)')).toBe('created');
+		expect(reason('Fact[^1] here.\n\n[^1]: Source.\n', 'Fact[^1]')).toBe('created');
+	});
+
+	it('refuses a Target that starts or ends inside an HTML tag or comment', () => {
+		expect(select('A <span class="x">word</span> b.', 'class="x">word')).toEqual({
+			refusal: 'in-html',
+			message: "a Target can't start or end inside an HTML tag.",
+		});
+		expect(reason('A <!-- note --> b.', 'note --> b')).toBe('in-html');
+	});
+
+	it('accepts a Target between HTML tags or around them', () => {
+		expect(reason('A <span class="x">word</span> b.', 'word')).toBe('created');
+		expect(reason('A <b>bold</b> b.', '<b>bold</b>')).toBe('created');
+		expect(reason('If a < b and c > d.', 'a < b and c')).toBe('created');
+	});
+
+	it('ignores look-alike syntax in code', () => {
+		expect(reason('Run `$x` and `[[a` now.', 'Run `$x` and')).toBe('created');
+	});
+
+	it('refuses to annotate an Excalidraw drawing', () => {
+		expect(select('---\nexcalidraw-plugin: parsed\n---\nHello ^abcdefgh\n', 'Hello')).toEqual({
+			refusal: 'excalidraw',
+			message: 'annotations are off in Excalidraw drawings.',
+		});
 	});
 });
 

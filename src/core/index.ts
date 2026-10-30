@@ -7,6 +7,8 @@ export { applyChanges } from './changes';
 export { definitionText, excerpt, normalizeComment } from './definition';
 export { blockPrefixLength, isTableLine } from './sections';
 export { codeMask } from './code';
+export { isExcalidraw } from './collisions';
+export { duplicateIds, planFixIds, type FixIdsPlan } from './fix-ids';
 export { cellBorders, isDelimiterRow, tableCells, type CellRange } from './tables';
 export { planCreate, nextId, type CreatePlan, type CreateRequest } from './plan-create';
 export { planMoveComments, type MovePlan } from './plan-move';

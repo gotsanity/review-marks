@@ -1,5 +1,5 @@
 import type { Annotation, AnnotationDoc, Definition } from './types';
-import { codeMask } from './code';
+import { isExcalidraw, notMarkupMask } from './collisions';
 
 const DEFINITION_LINE = /^\[\^(r\d+)\]:[ \t]?(.*)$/;
 const CONTINUATION = /^( {4}|\t)/;
@@ -17,12 +17,13 @@ export function lineStarts(text: string): number[] {
 	return out;
 }
 
-/** Every review definition (`[^rN]: …` plus continuation lines), in file order. */
-function parseDefinitions(text: string): Definition[] {
+/** Every review definition (`[^rN]: …` plus continuation lines) outside code, in file order. */
+function parseDefinitions(text: string, inCode: Uint8Array): Definition[] {
 	const lines = text.split('\n');
 	const starts = lineStarts(text);
 	const out: Definition[] = [];
 	for (let i = 0; i < lines.length; i++) {
+		if (inCode[starts[i] ?? 0]) continue;
 		const m = DEFINITION_LINE.exec(lines[i] ?? '');
 		if (!m) continue;
 		const parts = [m[2] ?? ''];
@@ -44,27 +45,28 @@ function parseDefinitions(text: string): Definition[] {
 	return out;
 }
 
+/** A paired `{` … `}[^rN]`, whether or not its ID was used before. */
+export interface MarkerOccurrence {
+	id: string;
+	open: number;
+	close: number;
+	markerEnd: number;
+}
+
 /**
- * Parses every Annotation in LF note text.
- *
- * A Target is `{` … `}[^rN]`, across blocks if need be: braces pair like brackets, so plain
- * `{pairs}` inside a Target stay balanced. Braces without a marker are plain text, `\{` and `\}` are escaped, and definitions and code are never scanned for Targets.
- * When an ID is used twice, the first marker and the first definition win.
+ * Every review definition and every paired marker of the note in file order, duplicate IDs
+ * included. Nothing in an Excalidraw drawing.
  */
-export function parse(text: string): AnnotationDoc {
-	const definitions = parseDefinitions(text);
-	const firstDef = new Map<string, Definition>();
-	for (const d of definitions) if (!firstDef.has(d.id)) firstDef.set(d.id, d);
+export function scan(text: string): { definitions: Definition[]; markers: MarkerOccurrence[] } {
+	if (isExcalidraw(text)) return { definitions: [], markers: [] };
+	const skip = notMarkupMask(text);
+	const definitions = parseDefinitions(text, skip);
+	for (const d of definitions) skip.fill(1, d.from, d.to);
 
-	const inDefinition = new Uint8Array(text.length);
-	for (const d of definitions) inDefinition.fill(1, d.from, d.to);
-	const inCode = codeMask(text);
-
-	const annotations: Annotation[] = [];
-	const seen = new Set<string>();
+	const markers: MarkerOccurrence[] = [];
 	const stack: number[] = [];
 	for (let i = 0; i < text.length; i++) {
-		if (inDefinition[i] || inCode[i]) continue;
+		if (skip[i]) continue;
 		const c = text[i];
 		if (c === '\\') {
 			i++;
@@ -75,13 +77,34 @@ export function parse(text: string): AnnotationDoc {
 			MARKER.lastIndex = i;
 			const m = MARKER.exec(text);
 			if (!m || open === undefined) continue;
-			const id = m[1] ?? '';
 			const markerEnd = i + m[0].length;
+			markers.push({ id: m[1] ?? '', open, close: i, markerEnd });
 			i = markerEnd - 1;
-			if (seen.has(id)) continue;
-			seen.add(id);
-			annotations.push({ id, open, close: m.index, markerEnd, definition: firstDef.get(id) ?? null });
 		}
+	}
+	return { definitions, markers };
+}
+
+/**
+ * Parses every Annotation in LF note text.
+ *
+ * A Target is `{` … `}[^rN]`, across blocks if need be: braces pair like brackets, so plain
+ * `{pairs}` inside a Target stay balanced. Braces without a marker are plain text, `\{` and `\}`
+ * are escaped, and definitions, code and Templater tags are never scanned for Targets.
+ * When an ID is used twice, the first marker and the first definition win. An Excalidraw drawing
+ * has no Annotations.
+ */
+export function parse(text: string): AnnotationDoc {
+	const { definitions, markers } = scan(text);
+	const firstDef = new Map<string, Definition>();
+	for (const d of definitions) if (!firstDef.has(d.id)) firstDef.set(d.id, d);
+
+	const annotations: Annotation[] = [];
+	const seen = new Set<string>();
+	for (const m of markers) {
+		if (seen.has(m.id)) continue;
+		seen.add(m.id);
+		annotations.push({ ...m, definition: firstDef.get(m.id) ?? null });
 	}
 	annotations.sort((a, b) => a.open - b.open);
 	const orphanDefinitions = [...firstDef.values()].filter((d) => !seen.has(d.id));

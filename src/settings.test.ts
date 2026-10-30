@@ -47,6 +47,22 @@ describe('settingsFrom: annotate-on-drag trigger', () => {
 	});
 });
 
+describe('settingsFrom: highlight colour', () => {
+	it("defaults to the theme's highlight colour, stored as empty", () => {
+		expect(settingsFrom(null).highlightColour).toBe('');
+	});
+
+	it('keeps a stored #rrggbb colour, lower-cased', () => {
+		expect(settingsFrom({ highlightColour: '#3A7BD5' }).highlightColour).toBe('#3a7bd5');
+	});
+
+	it('falls back to the theme colour for anything else', () => {
+		expect(settingsFrom({ highlightColour: 'red' }).highlightColour).toBe('');
+		expect(settingsFrom({ highlightColour: '#abc' }).highlightColour).toBe('');
+		expect(settingsFrom({ highlightColour: 42 }).highlightColour).toBe('');
+	});
+});
+
 describe('settingsFrom: strip annotations from exports', () => {
 	it('is off by default and keeps a stored boolean', () => {
 		expect(settingsFrom(null).stripFromExports).toBe(false);

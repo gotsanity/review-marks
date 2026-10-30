@@ -52,22 +52,45 @@ export class CommentPopover {
 			const anchor = anchorOf(e.target);
 			if (anchor && !anchor.contains(e.relatedTarget as Node | null)) this.hoverEnd();
 		};
-		const click = (e: MouseEvent) => {
+		const handle = (e: Event, anchor: HTMLElement | null) => {
 			// A root can be attached twice (Reading view re-runs post processors), or sit inside
 			// another: a click must toggle the popover only once.
 			if (this.handled.has(e)) return;
-			const anchor = anchorOf(e.target);
 			const ref = anchor && root.contains(anchor) ? resolve(anchor) : null;
 			if (!anchor || !ref || !this.click(anchor, ref, anchor.hasClass('rm-badge'))) return;
 			// The event goes on as usual: Live Preview's table widget needs it to open its cell editor.
 			this.handled.add(e);
 		};
+		// In Live Preview, pressing a Target moves the cursor into it, which redraws it to show its
+		// syntax. The browser then sends no click, as the pressed element is gone: a release on the
+		// redrawn Target that no click follows counts as one.
+		let pressed: string | null = null;
+		let released: number | undefined;
+		const down = (e: PointerEvent) => {
+			pressed = anchorOf(e.target)?.getAttribute('data-rm-id') ?? null;
+		};
+		const up = (e: PointerEvent) => {
+			const id = pressed;
+			pressed = null;
+			const anchor = anchorOf(e.target);
+			if (id === null || e.button !== 0 || !anchor || anchor.getAttribute('data-rm-id') !== id) return;
+			released = window.setTimeout(() => handle(e, anchor.isConnected ? anchor : null), 0);
+		};
+		const click = (e: MouseEvent) => {
+			window.clearTimeout(released);
+			handle(e, anchorOf(e.target));
+		};
 		root.addEventListener('mouseover', over);
 		root.addEventListener('mouseout', out);
+		root.addEventListener('pointerdown', down, true);
+		root.addEventListener('pointerup', up, true);
 		root.addEventListener('click', click);
 		return () => {
+			window.clearTimeout(released);
 			root.removeEventListener('mouseover', over);
 			root.removeEventListener('mouseout', out);
+			root.removeEventListener('pointerdown', down, true);
+			root.removeEventListener('pointerup', up, true);
 			root.removeEventListener('click', click);
 		};
 	}

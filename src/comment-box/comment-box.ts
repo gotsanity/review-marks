@@ -87,12 +87,15 @@ export class CommentBox {
 		doc.addEventListener('pointerdown', away, true);
 		doc.addEventListener('scroll', reposition, true);
 		win.addEventListener('resize', reposition);
+		// The on-screen keyboard shrinks the visual viewport, and on iOS also scrolls it.
 		win.visualViewport?.addEventListener('resize', reposition);
+		win.visualViewport?.addEventListener('scroll', reposition);
 		this.cleanup.push(() => {
 			doc.removeEventListener('pointerdown', away, true);
 			doc.removeEventListener('scroll', reposition, true);
 			win.removeEventListener('resize', reposition);
 			win.visualViewport?.removeEventListener('resize', reposition);
+			win.visualViewport?.removeEventListener('scroll', reposition);
 		});
 
 		this.grow();
