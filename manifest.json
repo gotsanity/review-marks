@@ -1,0 +1,9 @@
+{
+	"id": "review-marks",
+	"name": "Review Marks",
+	"version": "0.0.0",
+	"minAppVersion": "1.7.2",
+	"description": "Highlight passages in a note and attach comments that can be read inline, on hover, or in a sidebar.",
+	"author": "gotsanity",
+	"isDesktopOnly": false
+}

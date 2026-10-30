@@ -1,2 +1,9 @@
 .claude/
 node_modules/
+
+# Built output; attached to GitHub releases, never committed.
+main.js
+*.map
+
+# Obsidian plugin settings
+data.json
