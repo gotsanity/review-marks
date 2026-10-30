@@ -3,8 +3,8 @@
 // scrolls to the Target and it flashes.
 import { MarkdownView, type Plugin } from 'obsidian';
 import { notify } from '../notice';
-import { adjacentAnnotation, isExcalidraw, lineOfOffset, lineStarts, normalizeLineEndings, parse } from '../core';
-import { scrollPreviewTo } from '../guards';
+import { adjacentAnnotation, isExcalidraw, lineStarts, normalizeLineEndings, parse } from '../core';
+import { scrollToAnnotation } from '../guards';
 
 type Direction = 'next' | 'previous';
 
@@ -17,7 +17,7 @@ function goInEditor(view: MarkdownView, direction: Direction): boolean {
 	if (!target) return false;
 	const at = editor.offsetToPos(target.open + 1);
 	editor.setCursor(at);
-	editor.scrollIntoView({ from: at, to: at }, true);
+	void scrollToAnnotation(view, target.open + 1);
 	editor.focus();
 	return true;
 }
@@ -37,7 +37,7 @@ function goInPreview(view: MarkdownView, direction: Direction): boolean {
 	const target = adjacentAnnotation(doc, from, direction);
 	if (!target) return false;
 	lastInPreview.set(view, target.id);
-	scrollPreviewTo(view.previewMode, lineOfOffset(starts, target.open + 1), target.id);
+	void scrollToAnnotation(view, target.open + 1, { id: target.id });
 	return true;
 }
 

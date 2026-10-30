@@ -2,7 +2,7 @@
 import type { Editor, MarkdownPreviewView, MarkdownView } from 'obsidian';
 import type { ChangeDesc, EditorState, Extension, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { isDelimiterRow, isTableLine, tableCells, type CellRange } from './core';
+import { isDelimiterRow, isTableLine, lineOfOffset, lineStarts, normalizeLineEndings, tableCells, type CellRange } from './core';
 
 /**
  * The CodeMirror view behind an Obsidian editor. `editor.cm` is untyped but documented in
@@ -160,6 +160,7 @@ export function scrollSnapshotThrough(view: EditorView, changes: ChangeDesc): St
  */
 export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: string): void {
 	preview.applyScroll(Math.max(0, line - 2));
+	if (!id) return;
 	const win = preview.containerEl.win;
 	let tries = 0;
 	const find = () => {
@@ -172,6 +173,40 @@ export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: 
 		if (++tries < 10) win.requestAnimationFrame(find);
 	};
 	win.requestAnimationFrame(find);
+}
+
+const nextFrame = (win: Window) => new Promise<void>((resolve) => win.requestAnimationFrame(() => resolve()));
+
+/**
+ * Scrolls the note in `view` to the Target that starts at source offset `at`. In Reading view the
+ * Target is centred and, given its `id`, flashes (see `scrollPreviewTo`). In the editor its line is
+ * centred, or put at screen height `top` when given; line heights are estimates until drawn, so
+ * that is measured again for a few frames. Doesn't move the cursor.
+ */
+export async function scrollToAnnotation(view: MarkdownView, at: number, options: { id?: string; top?: number } = {}): Promise<void> {
+	if (view.getMode() === 'preview') {
+		const line = lineOfOffset(lineStarts(normalizeLineEndings(view.getViewData())), at);
+		scrollPreviewTo(view.previewMode, line, options.id ?? '');
+		return;
+	}
+	const { editor } = view;
+	const cm = editorViewOf(editor);
+	if (!cm) {
+		const pos = editor.offsetToPos(at);
+		editor.scrollIntoView({ from: pos, to: pos }, true);
+		return;
+	}
+	const { top } = options;
+	if (top === undefined) {
+		cm.dispatch({ effects: EditorView.scrollIntoView(at, { y: 'center' }) });
+		return;
+	}
+	const win = cm.dom.ownerDocument.defaultView ?? window;
+	for (let i = 0; i < 4; i++) {
+		await nextFrame(win);
+		const now = cm.coordsAtPos(at, 1)?.top ?? cm.documentTop + cm.lineBlockAt(at).top;
+		if (Math.abs(now - top) > 1) cm.scrollDOM.scrollTop += now - top;
+	}
 }
 
 // ---------- Annotate on drag in Reading view ----------
