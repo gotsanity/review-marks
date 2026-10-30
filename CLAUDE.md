@@ -18,7 +18,9 @@ One folder or file per module, so features land as new files:
 
 - `src/core/`: the annotation core. Pure, no Obsidian or CodeMirror imports. `parse(text)` returns an `AnnotationDoc`; planners such as `planCreate` return a plan with `Change[]` or a `Refusal`. Every format rule goes here, with tests.
 - `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
-- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, …) with its fallback.
+- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, the Live Preview table widget, …) with its fallback.
+- `src/selection-mapping/`: `mapSelection(text, slices, range)` maps a DOM Range over rendered blocks (each a `RenderedSlice`: element plus source range) to source offsets, snapped out of links, formatting runs and Annotation syntax.
+- `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Live Preview table cells), failing closed when braces don't line up.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
 - `src/live-preview/`: Live Preview decorations and the badge.
 - `src/commands/`: one file per command. `src/settings.ts`: settings and defaults. `src/main.ts`: wiring only.
@@ -31,6 +33,7 @@ The plugin's floor is Obsidian 1.7.4 (`minAppVersion`). The `obsidian` typings s
 
 - `npm test` runs once; `npm run test:watch` watches.
 - Tests sit next to the code as `src/**/*.test.ts`. Pure modules (the annotation core, selection mapping) are tested here on plain strings or a fake DOM, never with Obsidian imports.
+- Fake-DOM tests start with `// @vitest-environment happy-dom` and import `src/test-support/fake-dom.ts`, which builds blocks and Ranges and installs the Obsidian DOM helpers (`el.doc`, `createSpan`) the code uses.
 
 ### End-to-end tests (wdio-obsidian-service)
 
