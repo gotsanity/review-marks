@@ -1,5 +1,5 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
-import type { Editor, MarkdownPreviewView } from 'obsidian';
+import type { Editor, MarkdownPreviewView, MarkdownView } from 'obsidian';
 import type { ChangeDesc, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isDelimiterRow, isTableLine, tableCells, type CellRange } from './core';
@@ -130,10 +130,87 @@ export function scrollPreviewTo(preview: MarkdownPreviewView, line: number, id: 
 	win.requestAnimationFrame(find);
 }
 
+// ---------- Annotate on drag in Reading view ----------
+
+/** A DOM position: a node and an offset in it. */
+export interface Caret {
+	node: Node;
+	offset: number;
+}
+
+/** The parts of a Document that turn a screen point into a caret. Either may be missing. */
+export interface CaretSource {
+	caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+	caretRangeFromPoint?: (x: number, y: number) => Range | null;
+}
+
+/**
+ * The caret at a screen point: the standard `caretPositionFromPoint`, or the older
+ * `caretRangeFromPoint` where it is missing (WebKit and older Chromium). Null if there is no caret
+ * at the point, undefined if neither API exists.
+ */
+export function caretFromPoint(doc: CaretSource, x: number, y: number): Caret | null | undefined {
+	if (typeof doc.caretPositionFromPoint === 'function') {
+		const p = doc.caretPositionFromPoint(x, y);
+		return p ? { node: p.offsetNode, offset: p.offset } : null;
+	}
+	if (typeof doc.caretRangeFromPoint === 'function') {
+		const r = doc.caretRangeFromPoint(x, y);
+		return r ? { node: r.startContainer, offset: r.startOffset } : null;
+	}
+	return undefined;
+}
+
+const DRAG_HIGHLIGHT = 'rm-drag';
+
+/**
+ * Draws `range` (or clears it, for null) with the CSS Custom Highlight API, styled by
+ * `::highlight(rm-drag)`. Without the API it falls back to the real selection.
+ */
+export function showDragRange(win: Window, range: Range | null): void {
+	// Typed here: the `lib` setting doesn't give HighlightRegistry its Map methods.
+	const { CSS: css, Highlight } = win as unknown as {
+		CSS?: { highlights?: { set(name: string, h: unknown): unknown; delete(name: string): unknown } };
+		Highlight?: new (...ranges: Range[]) => unknown;
+	};
+	const highlights = css?.highlights;
+	if (highlights && typeof Highlight === 'function') {
+		if (range) highlights.set(DRAG_HIGHLIGHT, new Highlight(range));
+		else highlights.delete(DRAG_HIGHLIGHT);
+		return;
+	}
+	const selection = win.getSelection();
+	selection?.removeAllRanges();
+	if (range) selection?.addRange(range);
+}
+
+/**
+ * Switches a note from Reading view to Live Preview and returns its CodeMirror view. The `mode`
+ * and `source` view-state keys are undocumented, so the result is checked: undefined if the note
+ * is not in Live Preview afterwards.
+ */
+export async function switchToLivePreview(view: MarkdownView): Promise<EditorView | undefined> {
+	await view.setState({ ...view.getState(), mode: 'source', source: false }, { history: false });
+	if (view.getMode() !== 'source' || view.getState().source !== false) return undefined;
+	return editorViewOf(view.editor);
+}
+
 function flash(el: HTMLElement): void {
 	el.removeClass('rm-flash');
 	// Restart the animation if it is still running from a previous jump.
 	void el.offsetWidth;
 	el.addClass('rm-flash');
 	el.win.setTimeout(() => el.removeClass('rm-flash'), 1500);
+}
+
+/**
+ * Is this post processor call an export render (PDF export, or `MarkdownRenderer.render` as used
+ * by Copy as HTML) rather than an embed or a Live Preview table cell? None of them has section
+ * info. Obsidian passes embeds and table cells the undocumented `displayMode: false`; a render
+ * inside an editor is never an export, which still holds if that flag goes away.
+ */
+export function isExportRender(el: HTMLElement, ctx: { getSectionInfo(el: HTMLElement): unknown }): boolean {
+	if (ctx.getSectionInfo(el)) return false;
+	if ((ctx as { displayMode?: unknown }).displayMode === false) return false;
+	return !el.closest('.cm-editor');
 }

@@ -138,6 +138,11 @@ body {
 	background-color: var(--text-selection);
 }
 
+/* The range of a drag in Reading view (CSS Custom Highlight API). */
+::highlight(rm-drag) {
+	background-color: var(--text-selection);
+}
+
 /* ---------- Navigation (src/commands/navigate.ts) ---------- */
 
 .rm-target.rm-flash {

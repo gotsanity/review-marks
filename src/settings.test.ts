@@ -46,3 +46,11 @@ describe('settingsFrom: annotate-on-drag trigger', () => {
 		expect(settingsFrom({ dragTrigger: true }).dragTrigger).toBe('alt');
 	});
 });
+
+describe('settingsFrom: strip annotations from exports', () => {
+	it('is off by default and keeps a stored boolean', () => {
+		expect(settingsFrom(null).stripFromExports).toBe(false);
+		expect(settingsFrom({ stripFromExports: true }).stripFromExports).toBe(true);
+		expect(settingsFrom({ stripFromExports: 'yes' }).stripFromExports).toBe(false);
+	});
+});

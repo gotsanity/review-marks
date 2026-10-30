@@ -34,9 +34,9 @@ const dragField = StateField.define<DecorationSet>({
 const NOT_OURS = '.cm-table-widget, .cm-embed-block, .markdown-embed, .rm-badge';
 
 /** Mouse events that follow the pointer events of a gesture and must not reach the editor. */
-const COMPAT_EVENTS = ['mousedown', 'mousemove', 'mouseup', 'click', 'auxclick', 'dblclick', 'contextmenu'] as const;
+export const COMPAT_EVENTS = ['mousedown', 'mousemove', 'mouseup', 'click', 'auxclick', 'dblclick', 'contextmenu'] as const;
 
-function swallow(e: Event): void {
+export function swallow(e: Event): void {
 	e.preventDefault();
 	e.stopPropagation();
 	e.stopImmediatePropagation();
