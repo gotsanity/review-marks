@@ -1,10 +1,9 @@
 // "Move comments to end of note" and "Move comments to end of sections": the explicit way to
 // convert an existing note, since the placement setting only affects new Annotations.
-import { isolateHistory } from '@codemirror/commands';
-import { ChangeSet } from '@codemirror/state';
-import { Notice, type Editor, type Plugin } from 'obsidian';
-import { parse, planMoveComments, type MovePlan, type Placement } from '../core';
-import { editorViewOf, scrollSnapshotThrough } from '../guards';
+import type { Editor, Plugin } from 'obsidian';
+import { planMoveComments, type MovePlan, type Placement } from '../core';
+import { changeTargetFor } from '../apply/editor-target';
+import { notify } from '../notice';
 import { whenAnnotatable } from './annotatable';
 
 const WHERE: Record<Placement, string> = {
@@ -31,31 +30,14 @@ export function moveMessage(plan: MovePlan, placement: Placement): string {
 
 /**
  * Moves every comment of the note in the editor to `placement` as one undo step. Only the moved
- * lines change, so the cursor stays where it was, and the scroll position rides along in the
- * same transaction.
+ * lines change, so the cursor and the scroll position stay where they were.
  */
-export function moveComments(editor: Editor, placement: Placement): MovePlan {
-	const view = editorViewOf(editor);
-	const text = view ? view.state.doc.toString() : editor.getValue();
-	const plan = planMoveComments(parse(text), placement);
-	if (plan.changes.length > 0) {
-		if (view) {
-			const changes = ChangeSet.of(plan.changes, view.state.doc.length);
-			const scroll = scrollSnapshotThrough(view, changes);
-			view.dispatch({
-				changes,
-				effects: scroll ? [scroll] : [],
-				annotations: isolateHistory.of('full'),
-				userEvent: 'input.review-marks',
-			});
-		} else {
-			editor.transaction({
-				changes: plan.changes.map((c) => ({ from: editor.offsetToPos(c.from), to: editor.offsetToPos(c.to), text: c.insert })),
-			});
-		}
-	}
-	new Notice(`Review Marks: ${moveMessage(plan, placement)}`);
-	return plan;
+export async function moveComments(editor: Editor, placement: Placement): Promise<MovePlan> {
+	const plan = await changeTargetFor(editor).apply((doc) => planMoveComments(doc, placement));
+	// planMoveComments never refuses.
+	const moved = plan as MovePlan;
+	notify(moveMessage(moved, placement));
+	return moved;
 }
 
 /** Registers both commands. No default hotkeys, per the plugin guidelines. */
