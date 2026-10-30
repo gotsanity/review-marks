@@ -140,6 +140,73 @@ describe('planCreate: Comments and IDs', () => {
 	});
 });
 
+describe('planCreate: across blocks and in headings', () => {
+	it('wraps a Target across paragraphs', () => {
+		expect(annotate('Alpha.\n\nBeta gamma.\n', 'Alpha.\n\nBeta', 'Both.')).toBe(
+			'{Alpha.\n\nBeta}[^r1] gamma.\n\n[^r1]: Both.\n',
+		);
+	});
+
+	it('wraps a Target across list items, keeping the first bullet outside', () => {
+		expect(annotate('- one\n- two\n', '- one\n- two', 'Merge.')).toBe('- {one\n- two}[^r1]\n\n[^r1]: Merge.\n');
+	});
+
+	it('wraps a Target from a heading into a paragraph', () => {
+		expect(annotate('# Head\nBody.\n', 'Head\nBody', 'Hm.')).toBe('# {Head\nBody}[^r1].\n\n[^r1]: Hm.\n');
+	});
+
+	it('wraps a Target inside a heading and writes the definition at the end of its section', () => {
+		const text = '### Scene 3: Call of the Void (~00:41)\n\nBack in the hallway.\n\n### Scene 4\n';
+		expect(annotate(text, 'Call of the Void', 'Rename.')).toBe(
+			'### Scene 3: {Call of the Void}[^r1] (~00:41)\n\nBack in the hallway.\n\n[^r1]: Rename.\n\n### Scene 4\n',
+		);
+	});
+
+	it('places the definition in the section where the Target ends', () => {
+		const text = '# One\n\nAlpha.\n\n# Two\n\nBeta.\n\n# Three\n';
+		expect(annotate(text, 'Alpha.\n\n# Two\n\nBeta', 'Span.')).toBe(
+			'# One\n\n{Alpha.\n\n# Two\n\nBeta}[^r1].\n\n[^r1]: Span.\n\n# Three\n',
+		);
+	});
+
+	it('ends the Target before the next bullet when the selection takes it in', () => {
+		const p = planCreate(parse('- one\n- two\n'), { from: 2, to: 8, comment: 'c', placement: 'end-of-section' });
+		expect(isRefusal(p) ? p : p.target).toEqual({ from: 2, to: 5 });
+	});
+
+	it('still refuses a Target across table rows', () => {
+		const text = 'Alpha.\n| a | b |\n|---|---|\n';
+		const p = planCreate(parse(text), { from: 0, to: 10, comment: 'c', placement: 'end-of-section' });
+		expect(isRefusal(p) ? p.refusal : 'created').toBe('crosses-blocks');
+	});
+});
+
+describe('planCreate: code is not markup when placing the definition', () => {
+	it('skips a # line in fenced code when finding the end of the section', () => {
+		const text = '# One\n\nAlpha.\n\n```\n# not a heading\n```\n\nMore.\n\n# Two\n';
+		expect(annotate(text, 'Alpha', 'c')).toBe(
+			'# One\n\n{Alpha}[^r1].\n\n```\n# not a heading\n```\n\nMore.\n\n[^r1]: c\n\n# Two\n',
+		);
+	});
+
+	it('skips a # comment in frontmatter', () => {
+		const text = '---\n# yaml comment\n---\nAlpha.\n\n# Two\n';
+		expect(annotate(text, 'Alpha', 'c')).toBe('---\n# yaml comment\n---\n{Alpha}[^r1].\n\n[^r1]: c\n\n# Two\n');
+	});
+
+	it('does not join a [^rN]: line in fenced code', () => {
+		const text = 'Alpha.\n\n```\n[^r1]: x\n```\n\nMore.\n';
+		expect(annotate(text, 'Alpha', 'c', 'end-of-note')).toBe(
+			'{Alpha}[^r2].\n\n```\n[^r1]: x\n```\n\nMore.\n\n[^r2]: c\n',
+		);
+	});
+
+	it('does not join a [^rN]: line in fenced code that ends the section', () => {
+		const text = 'Alpha.\n\n```\n[^r1]: x\n```\n\n# Two\n';
+		expect(annotate(text, 'Alpha', 'c')).toBe('{Alpha}[^r2].\n\n```\n[^r1]: x\n```\n\n[^r2]: c\n\n# Two\n');
+	});
+});
+
 describe('planCreate: adjusting the selection', () => {
 	const plan = (text: string, from: number, to: number) =>
 		planCreate(parse(text), { from, to, comment: 'c', placement: 'end-of-section' });
@@ -168,10 +235,17 @@ describe('planCreate: refusals', () => {
 		expect(refusal('Alpha   beta.', 6, 7)).toBe('empty-selection');
 	});
 
-	it('refuses a selection across paragraphs, list items or into a heading', () => {
-		expect(refusal('Alpha.\n\nBeta.', 0, 12)).toBe('crosses-blocks');
-		expect(refusal('- one\n- two\n', 2, 11)).toBe('crosses-blocks');
-		expect(refusal('# Head\nBody\n', 2, 11)).toBe('crosses-blocks');
+	it('refuses a selection that starts or ends in code', () => {
+		expect(refusal('Run `the code` here.', 9, 19)).toBe('in-code');
+		expect(refusal('Run `the code` here.', 0, 8)).toBe('in-code');
+		expect(refusal('Alpha.\n\n```\nfn()\n```\n', 0, 13)).toBe('in-code');
+		expect(refusal('```\nfn()\n```\n\nAlpha.', 0, 20)).toBe('in-code');
+	});
+
+	it('accepts a selection around whole code, and braces in code', () => {
+		expect(refusal('Run `the code` here.', 4, 14)).toBe('created');
+		expect(refusal('Run `f{x` here.', 0, 14)).toBe('created');
+		expect(refusal('Alpha.\n\n```\n{\n```\n\nBeta.', 0, 23)).toBe('created');
 	});
 
 	it('accepts a selection across a soft line break', () => {

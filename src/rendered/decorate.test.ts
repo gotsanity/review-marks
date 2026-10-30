@@ -62,6 +62,44 @@ describe('decorateRendered: Live Preview table cells', () => {
 	});
 });
 
+describe('decorateRendered: a Target across sections', () => {
+	const TEXT =
+		'Alpha {beta.\n\n## Middle\n\n```\n} {\n```\n\nGamma}[^r1] delta.\n\n' +
+		'- {**Burnside** left.\n- **The two**}[^r11] carrying.\n\n[^r1]: c\n[^r11]: Merge.\n';
+
+	it('highlights from the { to the end of the section where the Target starts', () => {
+		expect(seen(decorate(TEXT, 'Alpha {beta.', '<p>Alpha {beta.</p>').root)).toBe('Alpha [beta.]');
+	});
+
+	it('highlights a heading inside the Target', () => {
+		expect(seen(decorate(TEXT, '## Middle', '<h2>Middle</h2>').root)).toBe('[Middle]');
+	});
+
+	it('highlights a code block inside the Target, its braces being its own', () => {
+		const { root, done } = decorate(TEXT, '```\n} {\n```', '<pre><code>} {\n</code></pre>');
+		expect(done).toBe(true);
+		expect(seen(root)).toBe('[} {\n]');
+		const tilde = 'A {b.\n\n~~~\n} {\n~~~\n\nc}[^r1]\n';
+		const fenced = decorate(tilde, '~~~\n} {\n~~~', '<pre><code>} {\n</code></pre>');
+		expect(fenced.done).toBe(true);
+	});
+
+	it('highlights from the start of the section where the Target ends', () => {
+		const html = '<p>Gamma}<sup class="footnote-ref"><a href="#fn-1">[1]</a></sup> delta.</p>';
+		expect(seen(decorate(TEXT, 'Gamma}[^r1] delta.', html).root)).toBe('[Gamma]<comment r1> delta.');
+	});
+
+	it('highlights across list items, leaving the bullets out (r11)', () => {
+		const html =
+			'<ul>\n<li>{<strong>Burnside</strong> left.</li>\n' +
+			'<li><strong>The two</strong>}<sup class="footnote-ref"><a href="#fn-2">[2]</a></sup> carrying.</li>\n</ul>';
+		const slice = '- {**Burnside** left.\n- **The two**}[^r11] carrying.';
+		const { root } = decorate(TEXT, slice, html);
+		expect(seen(root)).toBe('\n[Burnside][ left.]\n[The two]<comment r11> carrying.\n');
+		expect(root.querySelectorAll('li > .rm-target, li > strong > .rm-target')).toHaveLength(3);
+	});
+});
+
 describe('decorateRendered: rendered blocks', () => {
 	it('hides a footnote reference rendered as <sup> and puts the badge after it', () => {
 		const text = 'Kell fails {the save}[^r1] here.\n\n[^r1]: Check.\n';
