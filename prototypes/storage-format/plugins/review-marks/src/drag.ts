@@ -7,7 +7,7 @@
 import { App, MarkdownView, Notice, Platform, Plugin } from 'obsidian';
 import { StateEffect, StateField } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
-import { DragTrigger, settings } from './settings';
+import { DragTrigger, effectiveTrigger, settings } from './settings';
 import { isTableLine, lineStarts } from './parse';
 import { checkTarget } from './commands';
 import { annotateWithBox, commitActiveBox } from './comment-box';
@@ -35,12 +35,15 @@ export function registerDrag(plugin: Plugin) {
   plugin.registerDomEvent(window, 'pointerdown', onDown, { capture: true });
   // If a gesture is running, the compatibility mouse events must not reach the editor either.
   plugin.registerDomEvent(window, 'mousedown', (e) => { if (gesture) swallow(e); }, { capture: true });
+  // On macOS, Control+click also opens the context menu.
+  plugin.registerDomEvent(window, 'contextmenu', (e) => { if (gesture) swallow(e); }, { capture: true });
 }
 
 export function triggerHeld(e: MouseEvent, trig: DragTrigger = settings.dragTrigger): boolean {
+  trig = effectiveTrigger(trig);
   if (trig === 'off') return false;
   const parts = trig.split('-');
-  const want = { ctrl: false, meta: false, alt: parts.includes('alt'), shift: parts.includes('shift') };
+  const want = { ctrl: parts.includes('ctrl'), meta: false, alt: parts.includes('alt'), shift: parts.includes('shift') };
   if (parts.includes('mod')) { if (Platform.isMacOS) want.meta = true; else want.ctrl = true; }
   if (parts.includes('meta')) want.meta = true;
   return e.ctrlKey === want.ctrl && e.metaKey === want.meta && e.altKey === want.alt && e.shiftKey === want.shift;

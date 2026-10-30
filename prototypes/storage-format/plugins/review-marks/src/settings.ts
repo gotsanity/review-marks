@@ -1,5 +1,5 @@
 // PROTOTYPE (throwaway). Settings: interface, defaults, the live settings object and the tab.
-import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Platform, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import type { Placement } from './parse';
 
 export interface ReviewMarksSettings {
@@ -11,12 +11,31 @@ export interface ReviewMarksSettings {
   dragTrigger: DragTrigger;
 }
 
-/** Modifiers held while drag-selecting to annotate. 'mod' is Ctrl, or Cmd on macOS. */
-export type DragTrigger = 'off' | 'alt' | 'mod' | 'shift' | 'meta' | 'mod-alt' | 'mod-shift' | 'alt-shift' | 'mod-alt-shift';
-export const DRAG_TRIGGERS: Record<DragTrigger, string> = {
+/**
+ * Modifiers held while drag-selecting to annotate. 'mod' is Ctrl, or Cmd on macOS. 'meta' (the Windows
+ * key) is offered on Windows and Linux only; 'ctrl' (the real Control key) on macOS only.
+ */
+export type DragTrigger = 'off' | 'alt' | 'mod' | 'shift' | 'meta' | 'mod-alt' | 'mod-shift' | 'alt-shift' | 'mod-alt-shift'
+  | 'ctrl' | 'ctrl-alt' | 'ctrl-shift' | 'ctrl-alt-shift';
+const TRIGGERS_PC: Partial<Record<DragTrigger, string>> = {
   off: 'Off', alt: 'Alt', mod: 'Ctrl (Cmd on macOS)', shift: 'Shift', meta: 'Meta (Windows key, Cmd on macOS)',
   'mod-alt': 'Ctrl+Alt', 'mod-shift': 'Ctrl+Shift', 'alt-shift': 'Alt+Shift', 'mod-alt-shift': 'Ctrl+Alt+Shift',
 };
+const TRIGGERS_MAC: Partial<Record<DragTrigger, string>> = {
+  off: 'Off', alt: 'Option (Alt)', shift: 'Shift', mod: 'Cmd', ctrl: 'Control',
+  'mod-alt': 'Cmd+Option', 'mod-shift': 'Cmd+Shift', 'ctrl-alt': 'Control+Option', 'ctrl-shift': 'Control+Shift',
+  'alt-shift': 'Option+Shift', 'mod-alt-shift': 'Cmd+Option+Shift', 'ctrl-alt-shift': 'Control+Option+Shift',
+};
+export function dragTriggers() { return Platform.isMacOS ? TRIGGERS_MAC : TRIGGERS_PC; }
+
+/**
+ * The stored trigger as this platform reads it (settings sync between devices). On macOS, Meta is Cmd
+ * ('mod'). Elsewhere, the macOS-only Control choices become Ctrl ('mod').
+ */
+export function effectiveTrigger(t: DragTrigger = settings.dragTrigger): DragTrigger {
+  if (Platform.isMacOS) return t === 'meta' ? 'mod' : t;
+  return t.startsWith('ctrl') ? (t.replace('ctrl', 'mod') as DragTrigger) : t;
+}
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
   placement: 'end-of-section',
@@ -96,8 +115,8 @@ export class ReviewMarksSettingTab extends PluginSettingTab {
       .setName('Annotate-on-drag trigger')
       .setDesc("Hold these keys while you drag-select text to annotate it at once. Works in Live Preview, Source mode and Reading view (which switches to Live Preview). The editor's own behaviour for this combination is turned off while the setting is on.")
       .addDropdown((d) => {
-        for (const [k, label] of Object.entries(DRAG_TRIGGERS)) d.addOption(k, label);
-        d.setValue(settings.dragTrigger)
+        for (const [k, label] of Object.entries(dragTriggers())) d.addOption(k, label!);
+        d.setValue(effectiveTrigger())
           .onChange(async (v) => { settings.dragTrigger = v as DragTrigger; await saveSettings(this.plugin); });
       });
   }
