@@ -202,3 +202,15 @@ function flash(el: HTMLElement): void {
 	el.addClass('rm-flash');
 	el.win.setTimeout(() => el.removeClass('rm-flash'), 1500);
 }
+
+/**
+ * Is this post processor call an export render (PDF export, or `MarkdownRenderer.render` as used
+ * by Copy as HTML) rather than an embed or a Live Preview table cell? None of them has section
+ * info. Obsidian passes embeds and table cells the undocumented `displayMode: false`; a render
+ * inside an editor is never an export, which still holds if that flag goes away.
+ */
+export function isExportRender(el: HTMLElement, ctx: { getSectionInfo(el: HTMLElement): unknown }): boolean {
+	if (ctx.getSectionInfo(el)) return false;
+	if ((ctx as { displayMode?: unknown }).displayMode === false) return false;
+	return !el.closest('.cm-editor');
+}

@@ -16,6 +16,8 @@ export interface ReviewMarksSettings {
 	dragTrigger: DragTrigger;
 	/** Show "N annotations" for the active note in the status bar (desktop). */
 	showStatusBar: boolean;
+	/** PDF export and Copy as HTML show Targets as plain text, with no Comments. */
+	stripFromExports: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: ReviewMarksSettings = {
 	hideReviewFootnotes: true,
 	dragTrigger: DEFAULT_DRAG_TRIGGER,
 	showStatusBar: true,
+	stripFromExports: false,
 };
 
 const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -47,6 +50,7 @@ export function settingsFrom(data: unknown): ReviewMarksSettings {
 		hideReviewFootnotes: bool(stored.hideReviewFootnotes, DEFAULT_SETTINGS.hideReviewFootnotes),
 		dragTrigger: isDragTrigger(stored.dragTrigger) ? stored.dragTrigger : DEFAULT_SETTINGS.dragTrigger,
 		showStatusBar: bool(stored.showStatusBar, DEFAULT_SETTINGS.showStatusBar),
+		stripFromExports: bool(stored.stripFromExports, DEFAULT_SETTINGS.stripFromExports),
 	};
 }
 

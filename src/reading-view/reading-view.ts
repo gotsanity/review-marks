@@ -147,7 +147,7 @@ export function renderedSections(root: HTMLElement): RenderedSection[] {
 export function registerReadingView(plugin: Plugin, settings: () => ReviewMarksSettings, popover: CommentPopover): void {
 	const { vault } = plugin.app;
 	plugin.registerMarkdownPostProcessor(async (el, ctx) => {
-		// No section info means an embed, a hover preview or an export; they are left as rendered.
+		// No section info means an embed, a hover preview or an export (src/export cleans exports).
 		const info = ctx.getSectionInfo(el);
 		if (!info) return;
 		sectionContexts.set(el, ctx);
