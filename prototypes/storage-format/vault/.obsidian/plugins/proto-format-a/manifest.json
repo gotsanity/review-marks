@@ -1,9 +1,0 @@
-{
-  "id": "proto-format-a",
-  "name": "PROTOTYPE format A: inline {target}(instruction)",
-  "version": "0.0.1",
-  "minAppVersion": "1.5.0",
-  "description": "Throwaway prototype. Stores Annotations as {target}(instruction). Only acts on notes with frontmatter review-format: A.",
-  "author": "prototype",
-  "isDesktopOnly": false
-}

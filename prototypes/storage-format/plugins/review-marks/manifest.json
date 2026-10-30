@@ -1,0 +1,9 @@
+{
+  "id": "proto-review-marks",
+  "name": "Review Marks (prototype)",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "Throwaway prototype. Annotations stored as {target}[^rN] with [^rN]: comment footnote definitions.",
+  "author": "prototype",
+  "isDesktopOnly": false
+}

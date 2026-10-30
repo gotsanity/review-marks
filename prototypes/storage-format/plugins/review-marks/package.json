@@ -1,0 +1,17 @@
+{
+  "name": "proto-review-marks",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PROTOTYPE (throwaway): Review Marks B+, {target}[^rN] with [^rN]: comment footnotes.",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs",
+    "notes": "node make-notes.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "esbuild": "^0.25.0",
+    "obsidian": "1.14.4",
+    "typescript": "^5.6.0"
+  }
+}

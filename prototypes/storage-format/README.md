@@ -1,53 +1,90 @@
-# Prototype: plain-text storage format for annotations
+# Prototype: plain-text storage format for annotations (B+)
 
 > **Throwaway prototype code.** No tests, minimal error handling, not production code. Delete it once the decision is made.
 
 ## The question
 
-Issue #6: which plain-text syntax should store an Annotation (Target + Instruction) inside a note? The test document is `sample-document.md`, which is long and heavily formatted. The same 12 Annotations are applied in four syntaxes so they can be compared side by side.
+Issue #6 asks which plain-text syntax should store an Annotation (Target + Comment) inside a note. The first round built four variants (A to D) side by side. The user picked B, footnote at end, and asked for changes. This folder now holds B+, the re-prototype with those changes. The A to D plugins stay in `plugins/` for history. They are no longer built or loaded.
 
-## The four variants
+## The format
 
-| Key | Note | Syntax |
-| --- | --- | --- |
-| A | `A-inline.md` | Inline `{target}(instruction)` |
-| B | `B-footnote-end.md` | Footnote at end |
-| C | `C-highlight-comment.md` | Native highlight + comment |
-| D | `D-callout-after-block.md` | Callout after block |
+```markdown
+Kell fails the save and seizes in place, {his eyes burning with hatred}[^r6].
 
-Each variant plugin (`proto-format-a` to `-d`) only acts on notes whose frontmatter has a matching `review-format`, so all five plugins run in one vault without interfering.
+[^r6]: Check the recording (~00:04): was it "hatred" or "contempt"?
+    A second line is indented 4 spaces.
+```
+
+- The Target is wrapped in `{` and `}`, and the `[^rN]` marker follows the `}`. IDs go `r1`, `r2`, and so on. A new one takes the highest id plus one.
+- A Target may cross blocks: `{` goes where it starts and `}[^rN]` goes where it ends, even across paragraphs, list items and blank lines.
+- Braces inside code (fenced or inline) are ignored, and a Target can't start or end inside code. Braces without a marker are plain text.
+- Headings can be annotated. The heading's anchor and its outline entry then include the braces and the marker.
+- Links in a Comment stay real links.
+- The plugin acts on every markdown note. There is no frontmatter switch any more.
+
+## Where a new Comment goes
+
+The **Comment placement** setting decides this for new annotations only. It never moves existing ones.
+
+- **End of section** (default). The definition goes at the end of the section of the heading the Target ends in, just before the next heading of any level. It goes after any `[^r…]` definitions already there, with blank lines around it. Text before the first heading counts as its own section.
+- **End of note.** The definition goes after the last existing `[^r…]` definition, or at the end of the file.
+
+Reading view keeps Obsidian's default and shows every footnote at the end of the note.
 
 ## Run it
 
-1. From the repo root: `npm run prototype:storage-format`. This installs and builds every plugin into `vault/.obsidian/plugins/`. The built output is also committed, so this step is only needed after changing plugin code.
-2. In Obsidian: **Open folder as vault** and pick `prototypes/storage-format/vault`.
-3. When Obsidian asks whether you trust the vault's author, choose **Trust author and enable plugins**. If you missed that prompt, go to Settings > Community plugins, click **Turn on community plugins**, and check that all five `PROTOTYPE` plugins are enabled. Obsidian keeps restricted mode outside the vault files, so a config file can't skip this step.
+1. From the repo root, run `npm run prototype:storage-format`. This installs and builds `plugins/review-marks` into `vault/.obsidian/plugins/proto-review-marks/`. The built output is committed, so you only need this after changing plugin code.
+2. In Obsidian, use **Open folder as vault** and pick `prototypes/storage-format/vault`.
+3. When Obsidian asks whether you trust the vault's author, choose **Trust author and enable plugins**. If you missed the prompt, go to Settings > Community plugins, click **Turn on community plugins**, and check that **Review Marks (prototype)** is on. Obsidian stores restricted mode outside the vault, so a config file can't skip this step.
 
-## Switching
+## The test notes
 
-A yellow-on-black pill at the bottom centre of the window shows the current variant, for example `B (Footnote at end)`. The arrows cycle A, B, C, D and wrap around. The next note opens in the same pane, in the same view mode and at the same scroll position (as a fraction of the note), so you stay on roughly the same passage. The pill is a test tool and is not part of the design under review.
+Both notes are `sample-document.md` with the same 12 annotations the earlier variants used. `plugins/review-marks/make-notes.mjs` generates them.
 
-The command palette also has **Prototype: next variant** and **Prototype: previous variant**. They have no default hotkeys; assign your own if you like.
+- `Review sample - end of note.md` has every definition at the end of the note.
+- `Review sample - end of section.md` has each definition at the end of its Target's section.
 
-## What to compare in each variant
+The 12 cases:
 
-- **Raw file in Source mode.** Is it still readable to someone without the plugin?
-- **Live Preview.** Is the Target highlighted, is the syntax hidden until the cursor enters it, and does the indicator stay out of the way?
-- **Reading view.** Same highlight and indicator?
-- **Popover.** Hover over or tap an Annotation to see its Instruction.
-- **"Prototype: annotate selection" command.** Select some text, run the command and watch what it does to the file. Also try "Prototype: edit instruction at cursor".
-- **The 12 test Annotations:**
-  1. Plain span in a long paragraph
-  2. Target containing parentheses
-  3. Target crossing bold formatting
-  4. Two annotations in one paragraph, part 1
-  5. Two annotations in one paragraph, part 2
-  6. Instruction containing ( ) { } [[ ]]
-  7. Multi-line Instruction (two lines)
-  8. Table cell with a wikilink that uses an escaped pipe
-  9. Plain table cell
-  10. Whole list item
-  11. Target spanning two list items (crosses blocks)
-  12. Target inside a heading, with a long Instruction
+1. Plain span in a long paragraph
+2. Target containing parentheses
+3. Target crossing bold formatting
+4. Two annotations in one paragraph, part 1
+5. Two annotations in one paragraph, part 2
+6. Comment containing ( ) { } [[ ]]
+7. Multi-line Comment (two lines)
+8. Table cell with a wikilink that uses an escaped pipe (the "r8 bug" from round 1, now fixed)
+9. Plain table cell
+10. Whole list item
+11. One Target across two list items
+12. Target inside a heading, with a long Comment
 
-Where a format can't represent a case cleanly, the note has a visible `<!-- PROTOTYPE NOTE: ... -->` next to it. Those failures matter most.
+## What to try
+
+- **Live Preview.** The Target is highlighted and the syntax is hidden. Click into a Target and the braces and marker come back. They hide again when the cursor leaves or the editor loses focus. Table cells (cases 8 and 9) work too.
+- **Reading view.** Same highlight and badge. The footnote list at the end leaves out the `[^r…]` entries but keeps your own footnotes.
+- **Badge.** A pill after each Target shows the start of the Comment. Click it to pin the full Comment.
+- **Hover.** Hover a Target or badge to see the full Comment. On mobile, tap instead.
+- **Commands** (no default hotkeys):
+  - **Annotate selection.** Select text, run it, type the Comment. One Ctrl/Cmd+Z undoes the whole change.
+  - **Edit comment at cursor.** Works with the cursor on the Target, the marker or the definition.
+- **Settings** (Settings > Review Marks (prototype)): comment placement, show comment badge, badge excerpt length (32), show comment on hover, and hide review footnotes in the footnote list.
+
+The test note keeps one `<!-- PROTOTYPE NOTE -->` comment at the end. It says that r9 targets the first of two identical `17 (fail)` cells.
+
+## Code layout
+
+`plugins/review-marks/src/`:
+
+| File | What it holds |
+| --- | --- |
+| `parse.ts` | Parser, code masking, headings and sections, definition placement. No Obsidian imports. |
+| `settings.ts` | Settings interface, defaults, the live `settings` object, the settings tab. |
+| `ui.ts` | Popover, badge, comment modal. |
+| `render-dom.ts` | Decorates rendered HTML for a known source range. Reading view sections and Live Preview table cells both use it. |
+| `render-live.ts` | Live Preview: a StateField of decorations plus a scan of Obsidian's table widget. |
+| `render-reading.ts` | Reading view post processor and the footnote list. |
+| `commands.ts` | The two commands, `createAnnotation(editor, from, to, comment)` and `writeComment(editor \| file, id, comment)`. |
+| `main.ts` | Wiring only. |
+
+`createAnnotation` and `writeComment` are also on the plugin instance as `app.plugins.plugins['proto-review-marks'].api`.

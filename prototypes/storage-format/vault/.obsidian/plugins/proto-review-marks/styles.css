@@ -1,0 +1,78 @@
+/* PROTOTYPE (throwaway): Review Marks B+. */
+
+.rm-target {
+  background-color: rgba(255, 170, 60, 0.28);
+  border-bottom: 2px solid rgba(255, 140, 0, 0.8);
+  border-radius: 2px;
+}
+.rm-target.rm-nested {
+  background-color: rgba(255, 150, 40, 0.45);
+}
+.rm-target.rm-revealed {
+  background-color: rgba(255, 170, 60, 0.15);
+}
+.rm-syntax {
+  color: var(--text-faint);
+  background-color: rgba(255, 140, 0, 0.12);
+}
+.rm-hidden {
+  display: none !important;
+}
+
+.rm-badge {
+  display: inline-block;
+  max-width: 24em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 3px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: var(--font-ui-smaller);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.6;
+  vertical-align: 0.15em;
+  color: var(--text-on-accent);
+  background-color: rgba(220, 110, 0, 0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  text-indent: 0;
+}
+
+.rm-popover {
+  position: fixed;
+  top: var(--rm-top, 0);
+  left: var(--rm-left, 0);
+  z-index: var(--layer-popover);
+  max-width: 380px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  font-size: var(--font-ui-small);
+}
+.rm-popover-head {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 4px;
+}
+.rm-popover-body > p:first-child { margin-top: 0; }
+.rm-popover-body > p:last-child { margin-bottom: 0; }
+
+/* Definition lines in Live Preview. */
+.rm-def-line {
+  background-color: rgba(255, 170, 60, 0.08);
+  border-left: 3px solid rgba(255, 140, 0, 0.6);
+}
+
+.rm-textarea {
+  width: 100%;
+  min-height: 7em;
+}
+.rm-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 4px 0 8px;
+}

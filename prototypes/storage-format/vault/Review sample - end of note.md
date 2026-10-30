@@ -1,18 +1,14 @@
----
-review-format: C
----
-
 # Session 25 -- Khantor TTRPG Session Notes
 
 ## 1. Setting & World Context
 
-**Locations: the refinery hallway of the ghost iron mine, the ravine and ridge road below the mine (Zhar's route), the mine's entrance chambers, the woods between the mine and Cross Hollow, and the square in Cross Hollow.** The session picks up mid-fight with Harlow's face turned into Malas Vance's. Vance bargains with Rhiaah, holds Doreth Kell in place, and unmakes him with a wave of grey mist that also drops Rhiaah and cracks the sonic refiner. He takes Rhiaah's coin and the fire in Malek's blade, warns Malek that Kell will be back, and walks out whistling. ==Caly frenzies and Malek knocks her out.==%%Too terse. Say why Malek had to: she punched Rhiaah.%% Meanwhile Momo reaches Zhar at the Nightline and leads him to the mine, where he cuts down a gunman and a Blackheart captain holding a boy hostage, and meets Yorg Hardmud. The party regroups, rests while Caly rides out her frenzy, and walks the freed miners through the black woods to Cross Hollow. There they kill Floyd Gravel, Hark Thirstrun and the last of the Blackheart in the square, free the magistrate, and settle in for the night with the town. Next session the party heads back to Fort Ashby.
+**Locations: the refinery hallway of the ghost iron mine, the ravine and ridge road below the mine (Zhar's route), the mine's entrance chambers, the woods between the mine and Cross Hollow, and the square in Cross Hollow.** The session picks up mid-fight with Harlow's face turned into Malas Vance's. Vance bargains with Rhiaah, holds Doreth Kell in place, and unmakes him with a wave of grey mist that also drops Rhiaah and cracks the sonic refiner. He takes Rhiaah's coin and the fire in Malek's blade, warns Malek that Kell will be back, and walks out whistling. {Caly frenzies and Malek knocks her out.}[^r1] Meanwhile Momo reaches Zhar at the Nightline and leads him to the mine, where he cuts down a gunman and a Blackheart captain holding a boy hostage, and meets Yorg Hardmud. The party regroups, rests while Caly rides out her frenzy, and walks the freed miners through the black woods to Cross Hollow. There they kill Floyd Gravel, Hark Thirstrun and the last of the Blackheart in the square, free the magistrate, and settle in for the night with the town. Next session the party heads back to Fort Ashby.
 
 ### New World Facts Established
 
-- ==**Call of the Void.** Vance's grey mist==%%Label should match the scene title.%% unmakes what it touches. Rhiaah's prosthetics tarnished and rusted, the ghost iron in the refinery turned a copper-grey, the walls chipped and sanded away, and Kell flaked and melted to dust. Vance pulled the dust back to his hand and pressed it into a milky white stone, which he pocketed.
+- {**Call of the Void.** Vance's grey mist}[^r3] unmakes what it touches. Rhiaah's prosthetics tarnished and rusted, the ghost iron in the refinery turned a copper-grey, the walls chipped and sanded away, and Kell flaked and melted to dust. Vance pulled the dust back to his hand and pressed it into a milky white stone, which he pocketed.
 - **Doreth Kell will return.** Vance says Kell will be back with a score to settle with Malek. "He may not look the same next time, but it'll be him."
-- **Revenant regeneration.** ==Caly studied Kell's wounds knitting shut (Medicine 19)==%%Move the roll result to the Roll Log; keep prose clean.%%. It is a property of Kell's kind of revenant, not of the Revenant species. Caly can simulate it by spending Hit Dice, and nothing is beyond discovery as she grows.
+- **Revenant regeneration.** {Caly studied Kell's wounds knitting shut (Medicine 19)}[^r2]. It is a property of Kell's kind of revenant, not of the Revenant species. Caly can simulate it by spending Hit Dice, and nothing is beyond discovery as she grows.
 - **Caly's frenzy.** Caly remembers everything that happens while she is in a frenzy. Her friends can try to talk her out of it, but the DC is beyond them for now. It will get easier as she becomes comfortable with her nature. She can wake already in a frenzy, which makes sleeping around her dangerous. Her body does not knit and heal like a living one: her wrists were stripped raw where the bindings held her.
 - **The black wood.** The trees around Cross Hollow are living, growing charcoal, adapted to the area's constant lightning strikes. The wood is an incredibly durable fuel that burns for a very long time. The survivors' camp burned it in their boiler.
 - **Corpse flowers.** There are more of them than the one in the ravine. They eat the dead, which is part of why revenants seldom come to the Hollow Reach.
@@ -80,12 +76,11 @@ review-format: C
 
 ### Scene 1: Now, Now, Friends (~00:00--00:07)
 
-Kell holds Rhiaah's silver coin, and Malek lies on his back bleeding from his ears, eyes and mouth. Harlow steps through the door he fled through, his face melting into Vance's, and ==spreads his palms like a salesman==%%Keep this, good image.%%. "Now, now, friends. Let's not spoil a fine afternoon." ==Vance rolls a 26 on initiative.==%%Cut. Already in the Roll Log.%%
+Kell holds Rhiaah's silver coin, and Malek lies on his back bleeding from his ears, eyes and mouth. Harlow steps through the door he fled through, his face melting into Vance's, and {spreads his palms like a salesman}[^r4]. "Now, now, friends. Let's not spoil a fine afternoon." {Vance rolls a 26 on initiative.}[^r5]
 
-He turns to Rhiaah: "What is it that you want? And I hope you're willing to pay the price." Rhiaah starts to answer that a friend told her there is a dangerous place he needs her to go, and Kell shouts, "Enough of this!" and steps toward her. Vance spends his action on Hold Monster. Kell fails the save (17) and seizes in place, ==his eyes burning with hatred==%%Check the recording (~00:04): was it "hatred" or "contempt"? Don't add {flavour} or [[links]] here.%%. "You were saying?" <!-- PROTOTYPE NOTE: case 6. Obsidian indexes [[wikilinks]] inside %% comments, so "[[links]]" in this Instruction becomes a real unresolved link (graph, backlinks, link autocomplete). -->
+He turns to Rhiaah: "What is it that you want? And I hope you're willing to pay the price." Rhiaah starts to answer that a friend told her there is a dangerous place he needs her to go, and Kell shouts, "Enough of this!" and steps toward her. Vance spends his action on Hold Monster. Kell fails the save (17) and seizes in place, {his eyes burning with hatred}[^r6]. "You were saying?"
 
-==Rhiaah tells him there is a task he needs done==%%Rewrite as a direct quote.
-She said it in character; see the transcript.%%, and she wants to be at the front of that expedition. "And of course, I wouldn't want to sour my relationship with my favorite tea-drinking friend." Caly uses her healbot to cast Cure Wounds on Malek (11). Vance looks over at Rhiaah: "We really are going to have to talk about trade secrets." <!-- PROTOTYPE NOTE: case 7. Obsidian's inline comment rule does not cross a line break, so WITHOUT the plugin Reading view shows this two-line Instruction as raw text, comment markers included. The plugin strips it in Reading view. Live Preview hides it either way. -->
+{Rhiaah tells him there is a task he needs done}[^r7], and she wants to be at the front of that expedition. "And of course, I wouldn't want to sour my relationship with my favorite tea-drinking friend." Caly uses her healbot to cast Cure Wounds on Malek (11). Vance looks over at Rhiaah: "We really are going to have to talk about trade secrets."
 
 ### Scene 2: Momo's Errand (~00:07--00:41)
 
@@ -99,8 +94,7 @@ Halfway up the northern face, the road opens onto a flattened clearing with room
 
 About 20 feet in, the granite walls begin to show dull grey striations. The mine is lit by torches. The first chamber, about 30 by 60 feet, is an all-out brawl among roughly 15 people, with tipped carts of grey rock, guns, swords, axes, pickaxes, shovels and barrels. One man beats another with a set of chains. Zhar cannot tell the sides apart (Insight 10) until a man in a duster draws a pistol and shoots a gaunt, ragged man of about 25 dead. "Okay, yeah, I'm going after that guy." Zhar hits twice (22 for 9, Nick 17 for 14) and cuts across his stomach. Momo bites and misses. The gunman turns his pistol on Zhar at point-blank range (14), and Zhar parries it up and away so the shot goes into the ceiling.
 
-### Scene 3: ==Call of the Void==%%Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.%% (~00:41--00:50)
-<!-- PROTOTYPE NOTE: case 12. Rendered heading and Outline are clean, but Obsidian's heading metadata (metadataCache headings, data-heading attribute, so heading links/anchors) contains the whole raw highlight and comment markup, Instruction included. -->
+### Scene 3: {Call of the Void}[^r12] (~00:41--00:50)
 
 Back in the hallway, Malek tells Vance that friends do not keep secrets. Vance asks Rhiaah what she would have him do. "I'm doing what you asked. I have not yet fulfilled my bargain." He asks whether she wants this creature destroyed. Rhiaah tells him Kell is already gone, a shell. Malek adds that removing him from the premises would be the right course of action.
 
@@ -228,7 +222,7 @@ End of session.
 
 | Name | Role | Disposition |
 |------|------|-------------|
-| ==[[malas-vance\|Malas Vance]] (the Peddler)==%%Use "Vance" consistently; drop "the Peddler".%% | Malek's patron, Duke of Entropy | Destroyed Kell, took Rhiaah's coin "until you settle up," took Vesper's fire from Malek's blade. Left whistling. |
+| {[[malas-vance\|Malas Vance]] (the Peddler)}[^r8] | Malek's patron, Duke of Entropy | Destroyed Kell, took Rhiaah's coin "until you settle up," took Vesper's fire from Malek's blade. Left whistling. |
 | Doreth Kell | Revenant smith, ungoverned | Unmade by Vance. Will return in a new body with a score to settle with Malek. |
 | Yorg Hardmud | Dwarven barbarian, Kenneth's father | Friendly. Freed, led the miners' rising, fought in Cross Hollow. Keeps Rhiaah's warhammer. |
 | Momo | Rhiaah's mechanical familiar | Led Zhar from the Nightline to the mine. |
@@ -261,7 +255,7 @@ End of session.
 - **Rhiaah's silver coin** -- held by Vance until she settles up.
 - **Vesper's fire** -- drawn out of Malek's pact blade by Vance.
 - **Rhiaah's warhammer** -- given to Yorg.
-- ==**Malek's last potion.**==%%Which potion? Greater healing?%%
+- {**Malek's last potion.**}[^r10]
 - **Rations** -- one to Yorg, Malek's share to two exhausted miners.
 - **350 gp, plus 200 of Rhiaah's own** -- promised to Cross Hollow for provisions.
 
@@ -287,8 +281,8 @@ End of session.
 - **Vesper's fire,** which Vance says will be useful in the coming years.
 - **The cracked sonic refiner,** broken but valuable.
 - **The ghost iron mine.** Enough to fix the Nightline, or to start the biggest war anyone has seen. The party is keeping it quiet. Nobody guards it.
-- ==**Burnside** left with six carts of worked ghost iron and did not come back.==%%Merge these two threads; it's the same ghost iron. (part 1 of 2)%%
-- ==**The two people who escaped the mine**==%%Merge these two threads; it's the same ghost iron. (part 2 of 2)%% carrying bricks of ghost iron. <!-- PROTOTYPE NOTE: case 11. The Target should run from "**Burnside** left..." through "**The two people who escaped the mine**", but a native highlight cannot cross list items, so it is split into two Annotations with the Instruction duplicated. Editing one does not update the other. -->
+- {**Burnside** left with six carts of worked ghost iron and did not come back.
+- **The two people who escaped the mine**}[^r11] carrying bricks of ghost iron.
 - **Provisions for Cross Hollow.** 550 gp promised, to come from Fort Ashby with some of the townsfolk.
 - **The refugees** over the range. Maurice's boys can bring them back in a day or two.
 - **The magistrate** and his daughter. Burnside's lie about ghoul births.
@@ -330,7 +324,7 @@ End of session.
 | Character | Roll Type | Result | Context |
 |-----------|-----------|--------|---------|
 | Vance | Initiative | 26 | The hallway |
-| Doreth Kell | Wisdom save | ==17 (fail)==%%Was this a fail? DC was 18 per the transcript.%% | Hold Monster |
+| Doreth Kell | Wisdom save | {17 (fail)}[^r9] | Hold Monster |
 | Caly | Cure Wounds (healbot) | 11 | Heals Malek |
 | Zhar | Perception | 18 | The ravine; swamp smell |
 | Zhar | Perception | 11 | The road across the ravine |
@@ -423,3 +417,19 @@ End of session.
 - **Caly's frenzy save.** Caly reports "13, rolled an eight and a one" after spending the Hope. I logged it as the frenzy save. Check.
 - **Jill's cousin.** She says her cousin and his boy went for help. I took them to be the survivors' leader ("Pa") and the boy from Session 23. Confirm.
 - **The god of war's giant name.** Session 15 audio has something like "Herr Kung Unger." I wrote "a giant name that translates to war king." Give me the spelling if you want it named.
+
+[^r1]: Too terse. Say why Malek had to: she punched Rhiaah.
+[^r2]: Move the roll result to the Roll Log; keep prose clean.
+[^r3]: Label should match the scene title.
+[^r4]: Keep this, good image.
+[^r5]: Cut. Already in the Roll Log.
+[^r6]: Check the recording (~00:04): was it "hatred" or "contempt"? Don't add {flavour} or [[links]] here.
+[^r7]: Rewrite as a direct quote.
+    She said it in character; see the transcript.
+[^r8]: Use "Vance" consistently; drop "the Peddler".
+[^r9]: Was this a fail? DC was 18 per the transcript.
+[^r10]: Which potion? Greater healing?
+[^r11]: Merge these two threads; it's the same ghost iron.
+[^r12]: Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.
+
+<!-- PROTOTYPE NOTE: r9 targets the first of two "17 (fail)" cells in the Roll Log (Doreth Kell, Wisdom save). The second one (Constitution save) is not annotated. -->

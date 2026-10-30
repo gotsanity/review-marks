@@ -1,0 +1,975 @@
+"use strict";
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/main.ts
+var main_exports = {};
+__export(main_exports, {
+  createAnnotation: () => createAnnotation,
+  default: () => ReviewMarksPlugin,
+  writeComment: () => writeComment
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian6 = require("obsidian");
+
+// src/settings.ts
+var import_obsidian = require("obsidian");
+var DEFAULT_SETTINGS = {
+  placement: "end-of-section",
+  showBadge: true,
+  excerptLength: 32,
+  showHover: true,
+  hideReviewFootnotes: true
+};
+var settings = { ...DEFAULT_SETTINGS };
+var settingsVersion = 0;
+var listeners = [];
+function onSettingsChange(cb) {
+  listeners.push(cb);
+}
+async function loadSettings(plugin) {
+  Object.assign(settings, DEFAULT_SETTINGS, await plugin.loadData());
+}
+async function saveSettings(plugin) {
+  await plugin.saveData(settings);
+  settingsVersion++;
+  for (const cb of listeners) cb();
+}
+var ReviewMarksSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app3, plugin) {
+    super(app3, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("p", { text: "PROTOTYPE. Throwaway code for trying the B+ storage format.", cls: "setting-item-description" });
+    new import_obsidian.Setting(containerEl).setName("Comment placement").setDesc("Where the comment of a new annotation is written. Existing annotations are never moved.").addDropdown((d) => d.addOption("end-of-section", "End of section").addOption("end-of-note", "End of note").setValue(settings.placement).onChange(async (v) => {
+      settings.placement = v;
+      await saveSettings(this.plugin);
+    }));
+    new import_obsidian.Setting(containerEl).setName("Show comment badge").setDesc("A pill after each annotation with the start of its comment.").addToggle((t) => t.setValue(settings.showBadge).onChange(async (v) => {
+      settings.showBadge = v;
+      await saveSettings(this.plugin);
+    }));
+    new import_obsidian.Setting(containerEl).setName("Badge excerpt length").setDesc("How many characters of the comment the badge shows.").addText((t) => t.setValue(String(settings.excerptLength)).onChange(async (v) => {
+      const n = parseInt(v, 10);
+      if (!(n > 0)) return;
+      settings.excerptLength = n;
+      await saveSettings(this.plugin);
+    }));
+    new import_obsidian.Setting(containerEl).setName("Show comment on hover").setDesc("Hovering an annotation shows its full comment. On mobile, tap the annotation instead.").addToggle((t) => t.setValue(settings.showHover).onChange(async (v) => {
+      settings.showHover = v;
+      await saveSettings(this.plugin);
+    }));
+    new import_obsidian.Setting(containerEl).setName("Hide review footnotes in the footnote list").setDesc("In Reading view, the footnote list at the end of the note leaves out [^r\u2026] comments. Your other footnotes stay.").addToggle((t) => t.setValue(settings.hideReviewFootnotes).onChange(async (v) => {
+      settings.hideReviewFootnotes = v;
+      await saveSettings(this.plugin);
+    }));
+  }
+};
+
+// src/ui.ts
+var import_obsidian2 = require("obsidian");
+
+// src/parse.ts
+var REVIEW_ID = /^r\d+$/;
+function normalize(text) {
+  return text.replace(/\r\n?/g, "\n");
+}
+function lineStarts(text) {
+  const out = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === "\n") out.push(i + 1);
+  return out;
+}
+function ignoredMask(text) {
+  const m = new Uint8Array(text.length);
+  const fill = (a, b) => m.fill(1, a, b);
+  const fm = /^---\n[\s\S]*?\n---(?=\n|$)/.exec(text);
+  if (fm) fill(0, fm[0].length);
+  const starts = lineStarts(text);
+  let fence = null;
+  for (let i = 0; i < starts.length; i++) {
+    const s = starts[i];
+    const e = i + 1 < starts.length ? starts[i + 1] - 1 : text.length;
+    const line = text.slice(s, e);
+    const f = /^\s*(?:>\s*)*(`{3,}|~{3,})/.exec(line);
+    if (!fence) {
+      if (f && !(f[1][0] === "`" && line.slice(f.index + f[0].length).includes("`"))) {
+        fence = { ch: f[1][0], len: f[1].length, from: s };
+      }
+    } else if (f && f[1][0] === fence.ch && f[1].length >= fence.len && line.trim().replace(/^(?:>\s*)*/, "").replace(/[`~]/g, "") === "") {
+      fill(fence.from, e);
+      fence = null;
+    }
+  }
+  if (fence) fill(fence.from, text.length);
+  const tick = /`+/g;
+  let t;
+  while (t = tick.exec(text)) {
+    if (m[t.index]) continue;
+    const n = t[0].length;
+    const re = new RegExp("(^|[^`])`{" + n + "}(?!`)", "g");
+    re.lastIndex = t.index + n;
+    const c = re.exec(text);
+    if (!c) continue;
+    const end = c.index + c[1].length + n;
+    if (/\n[ \t]*\n/.test(text.slice(t.index, end))) continue;
+    fill(t.index, end);
+    tick.lastIndex = end;
+  }
+  for (const re of [/%%[\s\S]*?%%/g, /<!--[\s\S]*?-->/g]) {
+    let c;
+    while (c = re.exec(text)) if (!m[c.index]) fill(c.index, c.index + c[0].length);
+  }
+  return m;
+}
+function parse(text) {
+  const ign = ignoredMask(text);
+  const starts = lineStarts(text);
+  const lines = text.split("\n");
+  const defs = /* @__PURE__ */ new Map();
+  const inDef = new Uint8Array(text.length);
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\[\^(r\d+)\]:[ \t]?(.*)$/.exec(lines[i]);
+    if (!m || ign[starts[i]]) continue;
+    const parts = [m[2]];
+    let last = i;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (/^( {4}|\t)/.test(lines[j])) {
+        parts.push(lines[j].replace(/^( {4}|\t)/, ""));
+        last = j;
+        continue;
+      }
+      if (lines[j].trim() === "" && j + 1 < lines.length && /^( {4}|\t)/.test(lines[j + 1])) {
+        parts.push("");
+        continue;
+      }
+      break;
+    }
+    const from = starts[i], to = starts[last] + lines[last].length;
+    inDef.fill(1, from, to);
+    if (!defs.has(m[1])) defs.set(m[1], { from, to, comment: parts.join("\n").trimEnd() });
+    i = last;
+  }
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const stack = [];
+  const marker = /\}\[\^(r\d+)\](?!:)/y;
+  for (let i = 0; i < text.length; i++) {
+    if (ign[i] || inDef[i]) continue;
+    const c = text[i];
+    if (c === "\\") {
+      i++;
+      continue;
+    }
+    if (c === "{") {
+      stack.push(i);
+      continue;
+    }
+    if (c !== "}") continue;
+    const open = stack.pop();
+    marker.lastIndex = i;
+    const m = marker.exec(text);
+    if (!m || open === void 0 || seen.has(m[1])) continue;
+    seen.add(m[1]);
+    const d = defs.get(m[1]);
+    out.push({
+      id: m[1],
+      open,
+      close: i,
+      refEnd: i + m[0].length,
+      defFrom: d ? d.from : -1,
+      defTo: d ? d.to : -1,
+      comment: d ? d.comment : ""
+    });
+    i += m[0].length - 1;
+  }
+  out.sort((a, b) => a.open - b.open);
+  for (const [id, d] of defs) {
+    if (!seen.has(id)) out.push({ id, open: -1, close: -1, refEnd: -1, defFrom: d.from, defTo: d.to, comment: d.comment });
+  }
+  return out;
+}
+var cache = null;
+function analyze(text) {
+  if (!cache || cache.text !== text) cache = { text, anns: parse(text), ign: ignoredMask(text) };
+  return cache;
+}
+function nextId(anns) {
+  let max = 0;
+  for (const a of anns) max = Math.max(max, parseInt(a.id.slice(1), 10));
+  return "r" + (max + 1);
+}
+function defText(id, comment) {
+  return comment.split("\n").map((l, i) => i === 0 ? `[^${id}]: ${l}` : l.trim() === "" ? "" : "    " + l).join("\n");
+}
+function excerpt(s, n) {
+  const first = s.split("\n")[0];
+  return first.length > n || s.includes("\n") ? first.slice(0, n).trimEnd() + "\u2026" : first;
+}
+function headingStarts(text, ign = ignoredMask(text)) {
+  const out = [];
+  const re = /^#{1,6}(?:[ \t]|$)/gm;
+  let m;
+  while (m = re.exec(text)) if (!ign[m.index]) out.push(m.index);
+  return out;
+}
+function sectionAt(text, offset) {
+  const hs = headingStarts(text);
+  let from = 0, to = text.length;
+  for (const h of hs) {
+    if (h <= offset) from = h;
+    else {
+      to = h;
+      break;
+    }
+  }
+  return { from, to };
+}
+var BLOCK_PREFIX = /^(?:[ \t]*(?:>[ \t]?|[-*+][ \t]+(?:\[.\][ \t]+)?|\d+[.)][ \t]+))*[ \t]*(?:#{1,6}[ \t]+)?/;
+function blockPrefixLength(line) {
+  var _a;
+  return ((_a = BLOCK_PREFIX.exec(line)) != null ? _a : [""])[0].length;
+}
+function isTableLine(line) {
+  return /^\s*\|/.test(line);
+}
+function planDefinition(text, anns, targetEnd, placement, def) {
+  var _a;
+  if (placement === "end-of-note") {
+    const last = anns.filter((a) => a.defFrom >= 0).sort((a, b) => b.defTo - a.defTo)[0];
+    if (last) return { at: last.defTo, insert: "\n" + def };
+    let ce2 = text.length;
+    while (ce2 > 0 && /\s/.test(text[ce2 - 1])) ce2--;
+    return { at: ce2, insert: (ce2 > 0 ? "\n\n" : "") + def + (text.slice(ce2).includes("\n") ? "" : "\n") };
+  }
+  const { to: next } = sectionAt(text, targetEnd);
+  let ce = next;
+  while (ce > 0 && /\s/.test(text[ce - 1])) ce--;
+  if (ce < targetEnd) ce = targetEnd;
+  const afterDef = anns.some((a) => a.defFrom >= 0 && a.defTo === ce);
+  let insert = (afterDef ? "\n" : "\n\n") + def;
+  const gapNewlines = ((_a = text.slice(ce, next).match(/\n/g)) != null ? _a : []).length;
+  if (next < text.length) {
+    if (gapNewlines < 2) insert += "\n";
+  } else if (gapNewlines === 0) insert += "\n";
+  return { at: ce, insert };
+}
+function footnoteOrder(text) {
+  const ign = ignoredMask(text);
+  const defined = /* @__PURE__ */ new Set();
+  const dre = /^\[\^([^\]\s]+)\]:/gm;
+  let m;
+  while (m = dre.exec(text)) if (!ign[m.index]) defined.add(m[1]);
+  const out = [];
+  const re = /\[\^([^\]\s]+)\](?!:)/g;
+  while (m = re.exec(text)) {
+    if (ign[m.index] || !defined.has(m[1]) || out.includes(m[1])) continue;
+    out.push(m[1]);
+  }
+  return out;
+}
+function renderedBraces(text, from, to, anns, ign = ignoredMask(text)) {
+  const out = [];
+  const inDef = (i) => anns.some((a) => a.defFrom >= 0 && i >= a.defFrom && i < a.defTo);
+  for (let i = from; i < to; i++) {
+    const c = text[i];
+    if ((c === "{" || c === "}") && !ign[i] && !inDef(i)) out.push(i);
+  }
+  return out;
+}
+
+// src/ui.ts
+var app;
+var owner;
+function initUi(a, c) {
+  app = a;
+  owner = c;
+}
+var pop = null;
+var popAnchor = null;
+var pinned = false;
+var hideTimer;
+var popComp = null;
+function isPopoverPinned() {
+  return pinned;
+}
+function showPopover(anchor, a, sourcePath2, pin) {
+  window.clearTimeout(hideTimer);
+  if (pop && pinned && !pin) return;
+  if (pop && pinned && pin && popAnchor === anchor) {
+    hidePopover(true);
+    return;
+  }
+  hidePopover(true);
+  pinned = pin;
+  popAnchor = anchor;
+  pop = document.body.createDiv({ cls: "rm-popover" });
+  pop.createDiv({ cls: "rm-popover-head", text: `Comment [^${a.id}]` });
+  const body = pop.createDiv({ cls: "rm-popover-body markdown-rendered" });
+  popComp = new import_obsidian2.Component();
+  owner.addChild(popComp);
+  if (a.comment) void import_obsidian2.MarkdownRenderer.render(app, a.comment, body, sourcePath2, popComp).then(() => place(anchor));
+  else body.setText("(no definition found for this annotation)");
+  pop.addEventListener("mouseenter", () => window.clearTimeout(hideTimer));
+  pop.addEventListener("mouseleave", () => scheduleHide());
+  place(anchor);
+}
+function place(anchor) {
+  if (!pop) return;
+  const r = anchor.getBoundingClientRect();
+  const below = r.bottom + 6 + pop.offsetHeight <= window.innerHeight;
+  const top = below ? r.bottom + 6 : r.top - pop.offsetHeight - 6;
+  const left = Math.max(4, Math.min(r.left, window.innerWidth - pop.offsetWidth - 4));
+  pop.setCssProps({ "--rm-top": `${Math.max(4, top)}px`, "--rm-left": `${left}px` });
+}
+function scheduleHide() {
+  if (pinned) return;
+  window.clearTimeout(hideTimer);
+  hideTimer = window.setTimeout(() => hidePopover(false), 250);
+}
+function hidePopover(force) {
+  if (!pop || pinned && !force) return;
+  pop.remove();
+  if (popComp) owner.removeChild(popComp);
+  pop = null;
+  popComp = null;
+  popAnchor = null;
+  pinned = false;
+}
+function popoverContains(n) {
+  return !!pop && pop.contains(n);
+}
+function wireTarget(el, a, sourcePath2, isBadge) {
+  el.addEventListener("mouseenter", () => {
+    if (settings.showHover && !import_obsidian2.Platform.isMobile) showPopover(el, a, sourcePath2, false);
+  });
+  el.addEventListener("mouseleave", () => scheduleHide());
+  if (isBadge || import_obsidian2.Platform.isMobile) {
+    el.addEventListener("click", (e) => {
+      if (!isBadge && !settings.showHover) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showPopover(el, a, sourcePath2, true);
+    });
+  }
+}
+function makeBadge(a, sourcePath2) {
+  const el = createSpan({ cls: "rm-badge", attr: { "data-rm-id": a.id, "aria-label": "Comment" } });
+  el.setText(a.comment ? excerpt(a.comment, settings.excerptLength) : `[^${a.id}]?`);
+  wireTarget(el, a, sourcePath2, true);
+  return el;
+}
+var CommentModal = class extends import_obsidian2.Modal {
+  constructor(app3, heading, initial, onSubmit) {
+    super(app3);
+    this.heading = heading;
+    this.initial = initial;
+    this.onSubmit = onSubmit;
+  }
+  onOpen() {
+    this.titleEl.setText(this.heading);
+    const ta = this.contentEl.createEl("textarea", { cls: "rm-textarea" });
+    ta.value = this.initial;
+    this.contentEl.createDiv({ cls: "rm-hint", text: "Enter for a new line, Ctrl/Cmd+Enter to save." });
+    const submit = () => {
+      const v = ta.value.replace(/\s+$/, "").replace(/^\s*\n/, "");
+      if (!v.trim()) {
+        new import_obsidian2.Notice("Review Marks: the comment is empty.");
+        return;
+      }
+      this.close();
+      this.onSubmit(v);
+    };
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        submit();
+      }
+    });
+    this.contentEl.createEl("button", { text: "Save", cls: "mod-cta" }).addEventListener("click", submit);
+    window.setTimeout(() => ta.focus(), 0);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/render-live.ts
+var import_obsidian3 = require("obsidian");
+var import_state = require("@codemirror/state");
+var import_view = require("@codemirror/view");
+
+// src/render-dom.ts
+var SKIP = "code, pre, sup.footnote-ref, .rm-badge, .math, .cm-editor, .footnotes, .frontmatter, .table-row-drag-handle, .table-col-drag-handle";
+function skipped(n, root) {
+  for (let p = n.parentElement; p && p !== root; p = p.parentElement) if (p.matches(SKIP)) return true;
+  return false;
+}
+function undecorate(root) {
+  root.querySelectorAll(".rm-badge").forEach((b) => b.remove());
+  root.querySelectorAll("sup.rm-hidden").forEach((s) => s.removeClass("rm-hidden"));
+  root.querySelectorAll("span.rm-hidden, span.rm-target").forEach((s) => {
+    var _a;
+    return s.replaceWith(document.createTextNode((_a = s.textContent) != null ? _a : ""));
+  });
+  root.normalize();
+}
+function decorateRendered(root, text, from, to, sourcePath2) {
+  if (root.querySelector(".rm-hidden, .rm-target, .rm-badge")) undecorate(root);
+  const { anns, ign } = analyze(text);
+  const hits = anns.filter((a) => a.open >= 0 && a.open < to && a.refEnd > from);
+  if (!hits.length) return 0;
+  const nodes = [];
+  const braces = [];
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n;
+  while (n = w.nextNode()) {
+    if (skipped(n, root)) continue;
+    const t = n;
+    for (let i = 0; i < t.data.length; i++) {
+      const c = t.data[i];
+      if (c === "{" || c === "}") braces.push({ ni: nodes.length, ci: i, ch: c });
+    }
+    nodes.push(t);
+  }
+  if (!nodes.length) return 0;
+  const src = renderedBraces(text, from, to, anns, ign);
+  if (src.length !== braces.length) console.debug("[review-marks] brace count differs", { from, to, src: src.length, dom: braces.length });
+  const at = /* @__PURE__ */ new Map();
+  for (let k = 0; k < Math.min(src.length, braces.length); k++) {
+    if (text[src[k]] !== braces[k].ch) break;
+    at.set(src[k], braces[k]);
+  }
+  const ivs = /* @__PURE__ */ new Map();
+  const add = (ni, iv) => {
+    if (!ivs.has(ni)) ivs.set(ni, []);
+    ivs.get(ni).push(iv);
+  };
+  const badges = [];
+  let done = 0;
+  for (const a of hits) {
+    const o = a.open >= from ? at.get(a.open) : { ni: 0, ci: -1 };
+    const c = a.close < to ? at.get(a.close) : { ni: nodes.length - 1, ci: nodes[nodes.length - 1].length };
+    if (!o || !c) continue;
+    if (a.open >= from) add(o.ni, { s: o.ci, e: o.ci + 1, kind: "hide", ann: a });
+    if (a.close < to) {
+      const node = nodes[c.ni];
+      const rest = node.data.slice(c.ci + 1);
+      const ref = new RegExp("^(\\[\\^" + a.id + "\\]|" + a.id + "(?![0-9]))").exec(rest);
+      add(c.ni, { s: c.ci, e: c.ci + 1 + (ref ? ref[0].length : 0), kind: "hide", ann: a, close: true });
+      const sib = !ref && c.ci + 1 === node.length ? node.nextSibling : null;
+      if (sib instanceof HTMLElement && sib.tagName === "SUP") {
+        sib.addClass("rm-hidden");
+        badges.push({ ann: a, after: sib });
+      } else badges.push({ ann: a, after: "close" });
+    }
+    for (let k = o.ni; k <= c.ni; k++) {
+      const s = k === o.ni ? o.ci + 1 : 0;
+      const e = k === c.ni ? c.ci : nodes[k].length;
+      if (e > s && nodes[k].data.slice(s, e).trim() !== "") add(k, { s, e, kind: "target", ann: a });
+    }
+    done++;
+  }
+  for (const [ni, list] of ivs) {
+    const node = nodes[ni];
+    const cuts = /* @__PURE__ */ new Set([0, node.length]);
+    for (const iv of list) {
+      cuts.add(Math.max(0, iv.s));
+      cuts.add(Math.min(node.length, iv.e));
+    }
+    const pts = [...cuts].sort((x, y) => x - y);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const s = pts[i], e = pts[i + 1];
+      const piece = node.data.slice(s, e);
+      const cover = list.filter((iv) => iv.s <= s && iv.e >= e);
+      const hide2 = cover.find((iv) => iv.kind === "hide");
+      const tgts = cover.filter((iv) => iv.kind === "target").sort((x, y) => x.ann.close - x.ann.open - (y.ann.close - y.ann.open));
+      if (hide2) {
+        const sp = createSpan({ cls: "rm-hidden", text: piece });
+        if (hide2.close) sp.dataset.rmClose = hide2.ann.id;
+        frag.appendChild(sp);
+      } else if (tgts.length) {
+        const sp = createSpan({ cls: "rm-target" + (tgts.length > 1 ? " rm-nested" : ""), text: piece });
+        sp.dataset.rmId = tgts[0].ann.id;
+        wireTarget(sp, tgts[0].ann, sourcePath2, false);
+        frag.appendChild(sp);
+      } else frag.appendChild(document.createTextNode(piece));
+    }
+    node.replaceWith(frag);
+  }
+  if (settings.showBadge) {
+    for (const b of badges) {
+      const after = b.after === "close" ? root.querySelector(`[data-rm-close="${b.ann.id}"]`) : b.after;
+      after == null ? void 0 : after.after(makeBadge(b.ann, sourcePath2));
+    }
+  }
+  return done;
+}
+
+// src/render-live.ts
+var refreshEffect = import_state.StateEffect.define();
+var annotationsField = import_state.StateField.define({
+  create: (s) => analyze(s.doc.toString()).anns,
+  update: (v, tr) => tr.docChanged ? analyze(tr.state.doc.toString()).anns : v
+});
+var setFocus = import_state.StateEffect.define();
+var focusField = import_state.StateField.define({
+  create: () => false,
+  update: (v, tr) => {
+    for (const e of tr.effects) if (e.is(setFocus)) v = e.value;
+    return v;
+  }
+});
+var focusTracker = [
+  import_view.EditorView.focusChangeEffect.of((_s, focusing) => setFocus.of(focusing)),
+  // An editor that already has focus when the extension loads (plugin reload) gets no focus event.
+  import_view.ViewPlugin.define((view) => {
+    const raf = window.requestAnimationFrame(() => {
+      if (view.hasFocus) view.dispatch({ effects: setFocus.of(true) });
+    });
+    return { destroy: () => window.cancelAnimationFrame(raf) };
+  })
+];
+var sourcePath = (s) => {
+  var _a, _b, _c;
+  return (_c = (_b = (_a = s.field(import_obsidian3.editorInfoField, false)) == null ? void 0 : _a.file) == null ? void 0 : _b.path) != null ? _c : "";
+};
+var BadgeWidget = class extends import_view.WidgetType {
+  constructor(a, path, ver) {
+    super();
+    this.a = a;
+    this.path = path;
+    this.ver = ver;
+  }
+  eq(o) {
+    return o.a.id === this.a.id && o.a.comment === this.a.comment && o.ver === this.ver;
+  }
+  toDOM() {
+    return makeBadge(this.a, this.path);
+  }
+  ignoreEvent() {
+    return true;
+  }
+};
+var hide = import_view.Decoration.replace({});
+var syntaxMark = import_view.Decoration.mark({ class: "rm-syntax" });
+function build(s) {
+  if (!s.field(import_obsidian3.editorLivePreviewField, false)) return import_view.Decoration.none;
+  const doc = s.doc;
+  const path = sourcePath(s);
+  const out = [];
+  const table = (pos) => isTableLine(doc.lineAt(pos).text);
+  for (const a of s.field(annotationsField)) {
+    if (a.defFrom >= 0) {
+      const l1 = doc.lineAt(a.defFrom).number, l2 = doc.lineAt(a.defTo).number;
+      for (let l = l1; l <= l2; l++) out.push(import_view.Decoration.line({ class: "rm-def-line" }).range(doc.line(l).from));
+    }
+    if (a.open < 0) continue;
+    const touched = s.field(focusField, false) === true && s.selection.ranges.some((r) => r.from <= a.refEnd && r.to >= a.open);
+    const mark = import_view.Decoration.mark({ class: "rm-target" + (touched ? " rm-revealed" : ""), attributes: { "data-rm-id": a.id } });
+    for (let pos = a.open + 1; pos < a.close; ) {
+      const line = doc.lineAt(pos);
+      const end = Math.min(line.to, a.close);
+      if (pos === line.from) pos += blockPrefixLength(line.text);
+      if (end > pos && !isTableLine(line.text)) out.push(mark.range(pos, end));
+      pos = line.to + 1;
+    }
+    if (!table(a.open)) out.push((touched ? syntaxMark : hide).range(a.open, a.open + 1));
+    if (!table(a.close)) {
+      if (touched) out.push(syntaxMark.range(a.close, a.refEnd));
+      else if (settings.showBadge) out.push(import_view.Decoration.replace({ widget: new BadgeWidget(a, path, settingsVersion) }).range(a.close, a.refEnd));
+      else out.push(hide.range(a.close, a.refEnd));
+    }
+  }
+  return import_view.Decoration.set(out, true);
+}
+var decoField = import_state.StateField.define({
+  create: build,
+  update: (v, tr) => {
+    const lp = tr.startState.field(import_obsidian3.editorLivePreviewField, false) !== tr.state.field(import_obsidian3.editorLivePreviewField, false);
+    if (tr.docChanged || tr.selection || lp || tr.effects.some((e) => e.is(refreshEffect) || e.is(setFocus))) return build(tr.state);
+    return v;
+  },
+  provide: (f) => import_view.EditorView.decorations.from(f)
+});
+var hover = import_view.EditorView.domEventHandlers({
+  mouseover(e, view) {
+    var _a, _b;
+    if (!settings.showHover || import_obsidian3.Platform.isMobile || isPopoverPinned()) return;
+    const t = (_b = (_a = e.target).closest) == null ? void 0 : _b.call(_a, ".cm-content .rm-target[data-rm-id]");
+    if (!t || t.hasClass("rm-revealed") || t.closest(".cm-table-widget")) return;
+    const a = view.state.field(annotationsField).find((x) => x.id === t.dataset.rmId);
+    if (a) showPopover(t, a, sourcePath(view.state), false);
+  },
+  mouseout(e) {
+    var _a, _b;
+    if ((_b = (_a = e.target).closest) == null ? void 0 : _b.call(_a, ".rm-target")) scheduleHide();
+  },
+  // Clicking or typing into the text puts the cursor in the syntax: drop a hover popover.
+  mousedown() {
+    hidePopover(false);
+  },
+  keydown() {
+    hidePopover(false);
+  },
+  click(e, view) {
+    var _a, _b;
+    if (!import_obsidian3.Platform.isMobile || !settings.showHover) return;
+    const t = (_b = (_a = e.target).closest) == null ? void 0 : _b.call(_a, ".rm-target[data-rm-id]");
+    const a = t && view.state.field(annotationsField).find((x) => x.id === t.dataset.rmId);
+    if (t && a) showPopover(t, a, sourcePath(view.state), true);
+  }
+});
+var tableScan = import_view.ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.raf = 0;
+    this.schedule(view);
+  }
+  update(u) {
+    this.schedule(u.view);
+  }
+  schedule(view) {
+    window.cancelAnimationFrame(this.raf);
+    this.raf = window.requestAnimationFrame(() => scanTables(view));
+  }
+  destroy() {
+    window.cancelAnimationFrame(this.raf);
+  }
+});
+function splitCells(line, base) {
+  const cells = [];
+  let start = 0;
+  for (let i = 0; i <= line.length; i++) {
+    if (i < line.length && (line[i] !== "|" || line[i - 1] === "\\")) continue;
+    cells.push({ from: start, to: i });
+    start = i + 1;
+  }
+  if (/^\s*\|/.test(line)) cells.shift();
+  if (/\|\s*$/.test(line)) cells.pop();
+  return cells.map((c) => {
+    let f = c.from, t = c.to;
+    while (f < t && /\s/.test(line[f])) f++;
+    while (t > f && /\s/.test(line[t - 1])) t--;
+    return { from: base + f, to: base + t };
+  });
+}
+function scanTables(view) {
+  const s = view.state;
+  if (!s.field(import_obsidian3.editorLivePreviewField, false)) return;
+  const anns = s.field(annotationsField).filter((a) => a.open >= 0 && isTableLine(s.doc.lineAt(a.open).text));
+  if (!anns.length) return;
+  const text = s.doc.toString();
+  const path = sourcePath(s);
+  view.dom.querySelectorAll(".cm-table-widget").forEach((w) => {
+    let pos;
+    try {
+      pos = view.posAtDOM(w);
+    } catch (e) {
+      return;
+    }
+    let line = s.doc.lineAt(pos);
+    const rows = [];
+    for (let n = line.number; n <= s.doc.lines; n++) {
+      line = s.doc.line(n);
+      if (!isTableLine(line.text)) break;
+      if (n !== s.doc.lineAt(pos).number + 1) rows.push({ from: line.from, text: line.text });
+    }
+    const trs = Array.from(w.querySelectorAll("table tr"));
+    trs.forEach((tr, r) => {
+      const row = rows[r];
+      if (!row) return;
+      const cells = splitCells(row.text, row.from);
+      Array.from(tr.children).forEach((td, c) => {
+        var _a;
+        const cell = cells[c];
+        const wrap = (_a = td.querySelector(".table-cell-wrapper")) != null ? _a : td;
+        if (!cell || wrap.querySelector(".cm-editor")) return;
+        if (!anns.some((a) => a.open < cell.to && a.refEnd > cell.from)) return;
+        const sig = `${settingsVersion}:${text.slice(cell.from, cell.to)}`;
+        if (wrap.dataset.rmSig === sig && wrap.querySelector(".rm-hidden")) return;
+        wrap.dataset.rmSig = sig;
+        decorateRendered(wrap, text, cell.from, cell.to, path);
+      });
+    });
+  });
+}
+var livePreviewExtension = [annotationsField, focusField, focusTracker, import_state.Prec.highest(decoField), hover, tableScan];
+function refreshLivePreview(app3) {
+  for (const leaf of app3.workspace.getLeavesOfType("markdown")) {
+    const v = leaf.view;
+    if (!(v instanceof import_obsidian3.MarkdownView)) continue;
+    const cm = v.editor.cm;
+    if (!cm) continue;
+    cm.dom.querySelectorAll(".cm-table-widget [data-rm-sig]").forEach((el) => el.removeAttribute("data-rm-sig"));
+    cm.dispatch({ effects: refreshEffect.of(null) });
+  }
+}
+
+// src/render-reading.ts
+var import_obsidian4 = require("obsidian");
+function registerReading(plugin) {
+  plugin.registerMarkdownPostProcessor((el, ctx) => postProcess(plugin, el, ctx));
+  plugin.registerEvent(plugin.app.vault.on("modify", async (f) => {
+    if (!(f instanceof import_obsidian4.TFile) || f.extension !== "md") return;
+    const shape = shapeOf(normalize(await plugin.app.vault.cachedRead(f)));
+    const old = shapes.get(f.path);
+    shapes.set(f.path, shape);
+    if (old !== void 0 && old !== shape) rerenderPreviews(plugin, f.path);
+  }));
+}
+var shapes = /* @__PURE__ */ new Map();
+function shapeOf(text) {
+  const starts = lineStarts(text);
+  const line = (o) => {
+    let lo = 0, hi = starts.length - 1;
+    while (lo < hi) {
+      const m = lo + hi + 1 >> 1;
+      if (starts[m] <= o) lo = m;
+      else hi = m - 1;
+    }
+    return lo;
+  };
+  return analyze(text).anns.map((a) => `${a.id}:${a.open < 0 ? -1 : line(a.open)}-${a.close < 0 ? -1 : line(a.close)}:${a.comment}`).join("|");
+}
+function rerenderPreviews(plugin, path) {
+  var _a;
+  for (const leaf of plugin.app.workspace.getLeavesOfType("markdown")) {
+    const v = leaf.view;
+    if (v instanceof import_obsidian4.MarkdownView && (!path || ((_a = v.file) == null ? void 0 : _a.path) === path)) v.previewMode.rerender(true);
+  }
+}
+async function postProcess(plugin, el, ctx) {
+  var _a;
+  const info = ctx.getSectionInfo(el);
+  let text;
+  if (info) text = normalize(info.text);
+  else {
+    const f = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(f instanceof import_obsidian4.TFile)) return;
+    text = normalize(await plugin.app.vault.cachedRead(f));
+  }
+  if (!shapes.has(ctx.sourcePath)) shapes.set(ctx.sourcePath, shapeOf(text));
+  if (info) {
+    const starts = lineStarts(text);
+    const from = (_a = starts[info.lineStart]) != null ? _a : text.length;
+    const to = info.lineEnd + 1 < starts.length ? starts[info.lineEnd + 1] - 1 : text.length;
+    decorateRendered(el, text, from, to, ctx.sourcePath);
+  } else {
+    const { anns } = analyze(text);
+    el.querySelectorAll("sup.footnote-ref").forEach((sup) => {
+      var _a2, _b;
+      const id = (_b = (_a2 = sup.querySelector("a[data-footref]")) == null ? void 0 : _a2.getAttribute("data-footref")) != null ? _b : "";
+      const a = anns.find((x) => x.id === id && x.open >= 0);
+      if (!a || !(sup instanceof HTMLElement) || sup.hasClass("rm-hidden")) return;
+      sup.addClass("rm-hidden");
+      const prev = sup.previousSibling;
+      if (prev instanceof Text && prev.data.endsWith("}")) prev.data = prev.data.slice(0, -1);
+      if (settings.showBadge) sup.after(makeBadge(a, ctx.sourcePath));
+    });
+  }
+  el.querySelectorAll("section.footnotes").forEach((sec) => {
+    var _a2, _b, _c;
+    const order = footnoteOrder(text);
+    const items = Array.from(sec.querySelectorAll('li[id^="fn-"]'));
+    let hidden = 0;
+    for (const li of items) {
+      const num = parseInt((_b = (_a2 = /^fn-(\d+)/.exec(li.id)) == null ? void 0 : _a2[1]) != null ? _b : "0", 10);
+      const label = (_c = order[num - 1]) != null ? _c : "";
+      if (li instanceof HTMLLIElement && num) li.value = num;
+      if (!REVIEW_ID.test(label)) continue;
+      li.addClass("rm-review-fn");
+      li.setAttribute("data-rm-id", label);
+      if (settings.hideReviewFootnotes) {
+        li.addClass("rm-hidden");
+        hidden++;
+      }
+    }
+    if (items.length && hidden === items.length) sec.addClass("rm-hidden");
+  });
+}
+
+// src/commands.ts
+var import_obsidian5 = require("obsidian");
+var app2;
+function registerCommands(plugin) {
+  app2 = plugin.app;
+  plugin.addCommand({
+    id: "annotate-selection",
+    name: "Annotate selection",
+    editorCallback: (editor) => {
+      const from = editor.getCursor("from"), to = editor.getCursor("to");
+      const err = checkTarget(editor.getValue(), editor.posToOffset(from), editor.posToOffset(to));
+      if (typeof err === "string") {
+        new import_obsidian5.Notice("Review Marks: " + err);
+        return;
+      }
+      new CommentModal(app2, "New comment", "", (comment) => {
+        createAnnotation(editor, from, to, comment);
+      }).open();
+    }
+  });
+  plugin.addCommand({
+    id: "edit-comment-at-cursor",
+    name: "Edit comment at cursor",
+    editorCallback: (editor) => {
+      const a = annotationAt(editor.getValue(), editor.posToOffset(editor.getCursor("head")));
+      if (!a) {
+        new import_obsidian5.Notice("Review Marks: no annotation at the cursor.");
+        return;
+      }
+      new CommentModal(app2, `Edit comment [^${a.id}]`, a.comment, (comment) => {
+        void writeComment(editor, a.id, comment);
+      }).open();
+    }
+  });
+}
+function annotationAt(text, off) {
+  var _a;
+  const { anns } = analyze(text);
+  return (_a = anns.filter((a) => a.open >= 0 && off >= a.open && off <= a.refEnd).sort((x, y) => x.refEnd - x.open - (y.refEnd - y.open))[0]) != null ? _a : anns.find((a) => a.defFrom >= 0 && off >= a.defFrom && off <= a.defTo);
+}
+function checkTarget(text, f, t) {
+  if (f > t) [f, t] = [t, f];
+  const trim = () => {
+    while (f < t && /\s/.test(text[f])) f++;
+    while (t > f && /\s/.test(text[t - 1])) t--;
+  };
+  trim();
+  const lineStart = (o) => text.lastIndexOf("\n", o - 1) + 1;
+  const lineText = (o) => {
+    const s = lineStart(o);
+    const e = text.indexOf("\n", s);
+    return text.slice(s, e < 0 ? text.length : e);
+  };
+  const pf = blockPrefixLength(lineText(f));
+  if (f - lineStart(f) < pf) {
+    f = lineStart(f) + pf;
+    trim();
+  }
+  const lt = lineStart(t);
+  if (lt > f && t - lt <= blockPrefixLength(lineText(t))) {
+    t = lt - 1;
+    trim();
+  }
+  if (f >= t) return "select the text to annotate first.";
+  const { anns, ign } = analyze(text);
+  if (ign[f] || ign[t - 1]) return "a Target cannot start or end inside code or a comment.";
+  for (const a of anns) {
+    if (a.defFrom >= 0 && f < a.defTo && t > a.defFrom) return `the selection includes the comment of [^${a.id}].`;
+    if (a.open < 0) continue;
+    if (f > a.close && f < a.refEnd || t > a.close && t < a.refEnd) return `the selection starts or ends inside the marker [^${a.id}].`;
+    if (a.open < f && f < a.refEnd && t > a.refEnd || f < a.open && t > a.open && t < a.refEnd) return `the selection overlaps annotation [^${a.id}].`;
+  }
+  let depth = 0;
+  for (let i = f; i < t; i++) {
+    if (ign[i]) continue;
+    if (text[i] === "\\") {
+      i++;
+      continue;
+    }
+    if (text[i] === "{") depth++;
+    if (text[i] === "}" && --depth < 0) break;
+  }
+  if (depth !== 0) return "the selection has an unmatched { or }.";
+  if (isTableLine(lineText(f)) || isTableLine(lineText(t))) {
+    if (lineStart(f) !== lineStart(t) || /(^|[^\\])\|/.test(text.slice(f, t))) return "in a table, a Target must stay inside one cell.";
+  }
+  return { from: f, to: t };
+}
+function createAnnotation(editor, from, to, comment) {
+  const text = editor.getValue();
+  const r = checkTarget(text, editor.posToOffset(from), editor.posToOffset(to));
+  if (typeof r === "string") {
+    new import_obsidian5.Notice("Review Marks: " + r);
+    return null;
+  }
+  const { anns } = analyze(text);
+  const id = nextId(anns);
+  const plan = planDefinition(text, anns, r.to, settings.placement, defText(id, comment));
+  const ins = /* @__PURE__ */ new Map();
+  const put = (at, s, before = false) => {
+    var _a, _b;
+    return ins.set(at, before ? s + ((_a = ins.get(at)) != null ? _a : "") : ((_b = ins.get(at)) != null ? _b : "") + s);
+  };
+  put(r.from, "{");
+  put(r.to, `}[^${id}]`);
+  put(plan.at, plan.insert, plan.at === r.from);
+  const changes = [...ins].sort((a, b) => a[0] - b[0]).map(([at, s]) => {
+    const p = editor.offsetToPos(at);
+    return { from: p, to: p, text: s };
+  });
+  editor.transaction({ changes });
+  return id;
+}
+function commentChange(text, id, comment) {
+  const { anns } = analyze(text);
+  const a = anns.find((x) => x.id === id);
+  if (!a) return null;
+  if (a.defFrom >= 0) return { from: a.defFrom, to: a.defTo, insert: defText(id, comment) };
+  const p = planDefinition(text, anns, a.refEnd, settings.placement, defText(id, comment));
+  return { from: p.at, to: p.at, insert: p.insert };
+}
+async function writeComment(target, id, comment) {
+  if (target instanceof import_obsidian5.TFile) {
+    let ok = false;
+    await app2.vault.process(target, (data) => {
+      const crlf = data.includes("\r\n");
+      const text = normalize(data);
+      const c2 = commentChange(text, id, comment);
+      if (!c2) return data;
+      ok = true;
+      const out = text.slice(0, c2.from) + c2.insert + text.slice(c2.to);
+      return crlf ? out.replace(/\n/g, "\r\n") : out;
+    });
+    return ok;
+  }
+  const c = commentChange(target.getValue(), id, comment);
+  if (!c) return false;
+  target.transaction({ changes: [{ from: target.offsetToPos(c.from), to: target.offsetToPos(c.to), text: c.insert }] });
+  return true;
+}
+
+// src/main.ts
+var ReviewMarksPlugin = class extends import_obsidian6.Plugin {
+  constructor() {
+    super(...arguments);
+    /** Also reachable as app.plugins.plugins['proto-review-marks'].api (handy from the console). */
+    this.api = { createAnnotation, writeComment };
+  }
+  async onload() {
+    await loadSettings(this);
+    initUi(this.app, this);
+    this.registerEditorExtension(livePreviewExtension);
+    registerReading(this);
+    registerCommands(this);
+    this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
+    onSettingsChange(() => {
+      refreshLivePreview(this.app);
+      rerenderPreviews(this);
+    });
+    this.registerDomEvent(document, "click", (e) => {
+      var _a;
+      const t = e.target;
+      if (!popoverContains(t) && !((_a = t.closest) == null ? void 0 : _a.call(t, ".rm-badge, .rm-target"))) hidePopover(true);
+    });
+    this.register(() => hidePopover(true));
+  }
+};

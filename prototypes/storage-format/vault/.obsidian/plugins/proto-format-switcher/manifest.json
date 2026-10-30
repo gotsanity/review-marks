@@ -1,9 +1,0 @@
-{
-  "id": "proto-format-switcher",
-  "name": "PROTOTYPE: Format switcher",
-  "version": "0.0.1",
-  "minAppVersion": "1.5.0",
-  "description": "Throwaway prototype. Floating pill that cycles between the storage-format variant notes.",
-  "author": "prototype",
-  "isDesktopOnly": false
-}

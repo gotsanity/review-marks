@@ -1,11 +1,10 @@
----
-review-format: B
----
 # Session 25 -- Khantor TTRPG Session Notes
 
 ## 1. Setting & World Context
 
 **Locations: the refinery hallway of the ghost iron mine, the ravine and ridge road below the mine (Zhar's route), the mine's entrance chambers, the woods between the mine and Cross Hollow, and the square in Cross Hollow.** The session picks up mid-fight with Harlow's face turned into Malas Vance's. Vance bargains with Rhiaah, holds Doreth Kell in place, and unmakes him with a wave of grey mist that also drops Rhiaah and cracks the sonic refiner. He takes Rhiaah's coin and the fire in Malek's blade, warns Malek that Kell will be back, and walks out whistling. {Caly frenzies and Malek knocks her out.}[^r1] Meanwhile Momo reaches Zhar at the Nightline and leads him to the mine, where he cuts down a gunman and a Blackheart captain holding a boy hostage, and meets Yorg Hardmud. The party regroups, rests while Caly rides out her frenzy, and walks the freed miners through the black woods to Cross Hollow. There they kill Floyd Gravel, Hark Thirstrun and the last of the Blackheart in the square, free the magistrate, and settle in for the night with the town. Next session the party heads back to Fort Ashby.
+
+[^r1]: Too terse. Say why Malek had to: she punched Rhiaah.
 
 ### New World Facts Established
 
@@ -27,6 +26,9 @@ review-format: B
 - **Time.** About 15 minutes pass for each short rest. The fight in Cross Hollow ends in the evening of the same day.
 
 ---
+
+[^r2]: Move the roll result to the Roll Log; keep prose clean.
+[^r3]: Label should match the scene title.
 
 ## 2. Characters (PCs)
 
@@ -85,6 +87,12 @@ He turns to Rhiaah: "What is it that you want? And I hope you're willing to pay 
 
 {Rhiaah tells him there is a task he needs done}[^r7], and she wants to be at the front of that expedition. "And of course, I wouldn't want to sour my relationship with my favorite tea-drinking friend." Caly uses her healbot to cast Cure Wounds on Malek (11). Vance looks over at Rhiaah: "We really are going to have to talk about trade secrets."
 
+[^r4]: Keep this, good image.
+[^r5]: Cut. Already in the Roll Log.
+[^r6]: Check the recording (~00:04): was it "hatred" or "contempt"? Don't add {flavour} or [[links]] here.
+[^r7]: Rewrite as a direct quote.
+    She said it in character; see the transcript.
+
 ### Scene 2: Momo's Errand (~00:07--00:41)
 
 Some time earlier, Zhar sits hidden in the wrecked front of the Nightline, keeping watch over the crater while the Modron work inside. Momo bursts out of the far tree line at full speed, runs up his leg onto his shoulder and makes a racket of radio static. "I do not understand you, Momo." Momo jumps down, bites the edge of his shoe, tugs, and runs.
@@ -98,11 +106,12 @@ Halfway up the northern face, the road opens onto a flattened clearing with room
 About 20 feet in, the granite walls begin to show dull grey striations. The mine is lit by torches. The first chamber, about 30 by 60 feet, is an all-out brawl among roughly 15 people, with tipped carts of grey rock, guns, swords, axes, pickaxes, shovels and barrels. One man beats another with a set of chains. Zhar cannot tell the sides apart (Insight 10) until a man in a duster draws a pistol and shoots a gaunt, ragged man of about 25 dead. "Okay, yeah, I'm going after that guy." Zhar hits twice (22 for 9, Nick 17 for 14) and cuts across his stomach. Momo bites and misses. The gunman turns his pistol on Zhar at point-blank range (14), and Zhar parries it up and away so the shot goes into the ceiling.
 
 ### Scene 3: {Call of the Void}[^r12] (~00:41--00:50)
-<!-- PROTOTYPE NOTE: r12 puts the braces and the footnote marker inside the heading text. The outline, heading links ([[#...]]) and the heading anchor all see "{Call of the Void}[^r12]", so any existing link to this heading breaks while the Annotation exists. -->
 
 Back in the hallway, Malek tells Vance that friends do not keep secrets. Vance asks Rhiaah what she would have him do. "I'm doing what you asked. I have not yet fulfilled my bargain." He asks whether she wants this creature destroyed. Rhiaah tells him Kell is already gone, a shell. Malek adds that removing him from the premises would be the right course of action.
 
 Vance calls the void. A grey mist pours from his raised hand and fills the chamber. He chooses not to affect the party as much: they save with advantage (19, 19, 18) and take half, 7 each. Rhiaah, at 6 HP, drops. Kell fails (17) and takes 97 force damage. Rhiaah's gears stop and her heart slows, and she drops to a knee and falls on her side. Her prosthetics tarnish and rust. Kell flakes, peels and melts to dust. The ghost iron in the room tarnishes to a copper-grey, the cracked sonic refiner that shot Malek gets a crack along its casing and winds down, and the rock chips and sands away. Then Vance pulls the dust back to himself, all that growth and life, into a small sphere. To Malek's horror, it solidifies into a milky white stone, which Vance clutches and pockets. Kell turns to look at Vance in horror.
+
+[^r12]: Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.
 
 ### Scene 4: The Last of Kell (~00:50--01:10)
 
@@ -244,6 +253,8 @@ End of session.
 
 ---
 
+[^r8]: Use "Vance" consistently; drop "the Peddler".
+
 ## 5. Loot & Mechanics
 
 ### Items Found
@@ -262,6 +273,8 @@ End of session.
 - {**Malek's last potion.**}[^r10]
 - **Rations** -- one to Yorg, Malek's share to two exhausted miners.
 - **350 gp, plus 200 of Rhiaah's own** -- promised to Cross Hollow for provisions.
+
+[^r10]: Which potion? Greater healing?
 
 ### Conditions
 - **Caly** -- out of her frenzy and shaky. Her wrists are stripped where the bindings held, and they will not heal normally. Out of spell slots.
@@ -298,6 +311,8 @@ End of session.
 - **Caly's frenzy** and learning to point it at the right people.
 
 ---
+
+[^r11]: Merge these two threads; it's the same ghost iron.
 
 ## 7. Key Decisions
 
@@ -407,6 +422,8 @@ End of session.
 
 ---
 
+[^r9]: Was this a fail? DC was 18 per the transcript.
+
 ## 10. DM Notes
 
 - **Magistrate's name and gender.** The prep had Magistrate Ada Whitlock as a woman. At the table you changed the magistrate to a man, and the name came through as "Wickerbock." I used Magistrate Whitlock with no first name. Confirm the name, and whether the Cross Hollow node and Band G need updating.
@@ -422,19 +439,4 @@ End of session.
 - **Jill's cousin.** She says her cousin and his boy went for help. I took them to be the survivors' leader ("Pa") and the boy from Session 23. Confirm.
 - **The god of war's giant name.** Session 15 audio has something like "Herr Kung Unger." I wrote "a giant name that translates to war king." Give me the spelling if you want it named.
 
-[^r1]: Too terse. Say why Malek had to: she punched Rhiaah.
-[^r2]: Move the roll result to the Roll Log; keep prose clean.
-[^r3]: Label should match the scene title.
-[^r4]: Keep this, good image.
-[^r5]: Cut. Already in the Roll Log.
-[^r6]: Check the recording (~00:04): was it "hatred" or "contempt"? Don't add {flavour} or [[links]] here.
-[^r7]: Rewrite as a direct quote.
-    She said it in character; see the transcript.
-[^r8]: Use "Vance" consistently; drop "the Peddler".
-[^r9]: Was this a fail? DC was 18 per the transcript.
-[^r10]: Which potion? Greater healing?
-[^r11]: Merge these two threads; it's the same ghost iron.
-[^r12]: Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.
-
-<!-- PROTOTYPE NOTE: r6's Instruction contains [[links]]. In a footnote definition Obsidian treats it as a real wikilink: it renders as a link in Reading view and shows up as an unresolved link in the graph and in "links" searches. -->
 <!-- PROTOTYPE NOTE: r9 targets the first of two "17 (fail)" cells in the Roll Log (Doreth Kell, Wisdom save). The second one (Constitution save) is not annotated. -->

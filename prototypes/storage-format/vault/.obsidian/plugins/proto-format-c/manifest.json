@@ -1,9 +1,0 @@
-{
-  "id": "proto-format-c",
-  "name": "Prototype: format C (highlight + comment)",
-  "version": "0.0.1",
-  "minAppVersion": "1.5.0",
-  "description": "THROWAWAY PROTOTYPE. Annotations stored as ==target==%%instruction%%. Acts only on notes with frontmatter review-format: C.",
-  "author": "prototype",
-  "isDesktopOnly": false
-}
