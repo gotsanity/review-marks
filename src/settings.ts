@@ -14,6 +14,8 @@ export interface ReviewMarksSettings {
 	hideReviewFootnotes: boolean;
 	/** Modifier keys held while drag-selecting to annotate at once (src/drag/trigger.ts). */
 	dragTrigger: DragTrigger;
+	/** PDF export and Copy as HTML show Targets as plain text, with no Comments. */
+	stripFromExports: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: ReviewMarksSettings = {
 	showHover: true,
 	hideReviewFootnotes: true,
 	dragTrigger: DEFAULT_DRAG_TRIGGER,
+	stripFromExports: false,
 };
 
 const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -43,6 +46,7 @@ export function settingsFrom(data: unknown): ReviewMarksSettings {
 		showHover: bool(stored.showHover, DEFAULT_SETTINGS.showHover),
 		hideReviewFootnotes: bool(stored.hideReviewFootnotes, DEFAULT_SETTINGS.hideReviewFootnotes),
 		dragTrigger: isDragTrigger(stored.dragTrigger) ? stored.dragTrigger : DEFAULT_SETTINGS.dragTrigger,
+		stripFromExports: bool(stored.stripFromExports, DEFAULT_SETTINGS.stripFromExports),
 	};
 }
 

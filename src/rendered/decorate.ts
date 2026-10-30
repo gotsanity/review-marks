@@ -28,7 +28,7 @@ interface Spot {
 	index: number;
 }
 
-function textNodes(root: HTMLElement): { nodes: Text[]; braces: (Spot & { ch: string })[] } {
+export function textNodes(root: HTMLElement): { nodes: Text[]; braces: (Spot & { ch: string })[] } {
 	const nodes: Text[] = [];
 	const braces: (Spot & { ch: string })[] = [];
 	const walker = root.doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -50,7 +50,7 @@ function textNodes(root: HTMLElement): { nodes: Text[]; braces: (Spot & { ch: st
 }
 
 /** Offsets of the braces in `text[from, to)` that render as brace characters (not in code spans). */
-function sourceBraces(text: string, from: number, to: number): number[] {
+export function sourceBraces(text: string, from: number, to: number): number[] {
 	const out: number[] = [];
 	for (let i = from; i < to; i++) {
 		const c = text[i];
