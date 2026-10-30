@@ -12,6 +12,17 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## Code layout
+
+One folder or file per module, so features land as new files:
+
+- `src/core/`: the annotation core. Pure, no Obsidian or CodeMirror imports. `parse(text)` returns an `AnnotationDoc`; planners such as `planCreate` return a plan with `Change[]` or a `Refusal`. Every format rule goes here, with tests.
+- `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
+- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, …) with its fallback.
+- `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
+- `src/live-preview/`: Live Preview decorations and the badge.
+- `src/commands/`: one file per command. `src/settings.ts`: settings and defaults. `src/main.ts`: wiring only.
+
 ## Testing
 
 The plugin's floor is Obsidian 1.7.4 (`minAppVersion`). The `obsidian` typings stay pinned at 1.7.2 because no 1.7.4 typings were published, and using newer typings would let APIs above the floor type-check. CI (`.github/workflows/ci.yml`) runs lint, typecheck, build, unit tests and end-to-end tests on every PR.

@@ -1,1 +1,96 @@
 /* Review Marks styles. */
+
+body {
+	--rm-highlight: rgba(255, 170, 60, 0.28);
+	--rm-highlight-revealed: rgba(255, 170, 60, 0.15);
+	--rm-accent: rgba(255, 140, 0, 0.8);
+	--rm-badge-background: rgba(220, 110, 0, 0.85);
+}
+
+/* ---------- Live Preview (src/live-preview) ---------- */
+
+.rm-target {
+	background-color: var(--rm-highlight);
+	border-bottom: 2px solid var(--rm-accent);
+	border-radius: 2px;
+}
+
+.rm-target.rm-revealed {
+	background-color: var(--rm-highlight-revealed);
+}
+
+.rm-syntax {
+	color: var(--text-faint);
+}
+
+.rm-badge {
+	display: inline-block;
+	max-width: 24em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-left: 3px;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: var(--font-ui-smaller);
+	font-weight: normal;
+	font-style: normal;
+	line-height: 1.6;
+	vertical-align: 0.15em;
+	color: var(--text-on-accent);
+	background-color: var(--rm-badge-background);
+	cursor: default;
+	white-space: nowrap;
+	user-select: none;
+	text-indent: 0;
+}
+
+/* ---------- Inline comment box (src/comment-box) ---------- */
+
+.rm-cbox {
+	position: fixed;
+	top: var(--rm-top, 0);
+	left: var(--rm-left, 0);
+	z-index: var(--layer-popover);
+	width: min(380px, calc(100vw - 8px));
+	padding: 6px 8px;
+	border: 1px solid var(--rm-accent);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+}
+
+.rm-cbox-head {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 4px;
+}
+
+.rm-cbox-input {
+	display: block;
+	width: 100%;
+	height: var(--rm-cbox-input-height, auto);
+	min-height: 2.2em;
+	resize: none;
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
+
+.rm-cbox-foot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.rm-cbox-hint {
+	flex: 1;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.rm-cbox-btn {
+	padding: 2px 10px;
+	height: auto;
+	font-size: var(--font-ui-smaller);
+}
