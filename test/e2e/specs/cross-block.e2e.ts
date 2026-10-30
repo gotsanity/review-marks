@@ -141,7 +141,8 @@ describe('Targets across blocks and in headings', () => {
 			});
 
 			it('highlights r12 in a heading in Live Preview', async () => {
-				expect(await livePreviewParts(note, 'r12')).toEqual([
+				// The heading's line class comes from the syntax tree, which a long note parses in the background.
+				expect(await livePreviewParts(note, 'r12', (p) => p.some((x) => x.block === 'header'))).toEqual([
 					{ block: 'header', target: 'Call of the Void', bulletHighlighted: false },
 				]);
 			});

@@ -54,7 +54,9 @@ jobs:
           key: obsidian-cache-${{ runner.os }}-${{ hashFiles('obsidian-versions-lock.txt') }}
 
       # Obsidian needs a display. xvfb is the virtual display, herbstluftwm
-      # the window manager some Obsidian features expect.
+      # the window manager some Obsidian features expect. Its windows float:
+      # tiled, the parallel sessions' windows share the screen at a size the
+      # window manager picks, and a test can't resize its own window.
       - name: Set up virtual display
         run: |
           sudo apt-get update -q
@@ -64,7 +66,8 @@ jobs:
           Xvfb $DISPLAY -screen 0 1280x1024x24 +extension GLX -noreset &
           sleep 1
           herbstluftwm &
-          sleep 1
+          for i in $(seq 20); do herbstclient rule floating=on && break; sleep 0.5; done
+          herbstclient list_rules
 
       - name: End-to-end tests (Obsidian 1.7.4 and latest)
         run: npm run test:e2e
