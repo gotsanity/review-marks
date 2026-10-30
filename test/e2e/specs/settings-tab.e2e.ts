@@ -5,10 +5,12 @@ import { after, before, describe, it } from 'mocha';
 const settingItems = () =>
 	browser.executeObsidian(({ plugins }) => {
 		const tab = (plugins.reviewMarks as unknown as { settingsTab: { containerEl: HTMLElement } }).settingsTab;
-		return Array.from(tab.containerEl.querySelectorAll('.setting-item')).map((el) => [
-			el.querySelector('.setting-item-name')?.textContent ?? '',
-			el.querySelector('.setting-item-description')?.textContent ?? '',
-		]);
+		return Array.from(tab.containerEl.querySelectorAll('.setting-item')).map(
+			(el): [string, string] => [
+				el.querySelector('.setting-item-name')?.textContent ?? '',
+				el.querySelector('.setting-item-description')?.textContent ?? '',
+			],
+		);
 	});
 
 describe('Settings tab', () => {
