@@ -47,7 +47,7 @@ export class ReviewMarksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Comment placement')
-      .setDesc('Where the comment of a new annotation is written. Existing annotations are never moved.')
+      .setDesc('Where the comment of a new annotation is written. Existing annotations are never moved; to convert a note, run "Move comments to end of note" or "Move comments to end of sections".')
       .addDropdown((d) => d
         .addOption('end-of-section', 'End of section')
         .addOption('end-of-note', 'End of note')

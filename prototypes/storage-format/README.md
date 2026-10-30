@@ -31,6 +31,15 @@ The **Comment placement** setting decides this for new annotations only. It neve
 
 Reading view keeps Obsidian's default and shows every footnote at the end of the note.
 
+## Converting a note
+
+Changing the setting never rewrites a note. To convert one, run either command (no default hotkeys):
+
+- **Move comments to end of note.** Every `[^rN]` definition goes to the end of the file, in the reading order of the markers.
+- **Move comments to end of sections.** Each definition goes to the end of the section its Target ends in, using the same rule as new annotations. Within a section, the definitions follow the reading order of their markers.
+
+Both are one undo step and keep the cursor and scroll position. Running one twice changes nothing. Definitions move as whole lines, byte for byte. Author footnotes never move. A definition with no marker and a marker with no definition stay where they are, and a Notice gives the count. The code is in `src/convert.ts`.
+
 ## Run it
 
 1. From the repo root, run `npm run prototype:storage-format`. This installs and builds `plugins/review-marks` into `vault/.obsidian/plugins/proto-review-marks/`. The built output is committed, so you only need this after changing plugin code.
@@ -85,6 +94,7 @@ The test note keeps one `<!-- PROTOTYPE NOTE -->` comment at the end. It says th
 | `render-live.ts` | Live Preview: a StateField of decorations plus a scan of Obsidian's table widget. |
 | `render-reading.ts` | Reading view post processor and the footnote list. |
 | `commands.ts` | The two commands, `createAnnotation(editor, from, to, comment)` and `writeComment(editor \| file, id, comment)`. |
+| `convert.ts` | The two "Move comments to …" commands. |
 | `main.ts` | Wiring only. |
 
 `createAnnotation` and `writeComment` are also on the plugin instance as `app.plugins.plugins['proto-review-marks'].api`.
