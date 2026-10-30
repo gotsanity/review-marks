@@ -22,7 +22,7 @@ const TRIGGERS_PC: Partial<Record<DragTrigger, string>> = {
   'mod-alt': 'Ctrl+Alt', 'mod-shift': 'Ctrl+Shift', 'alt-shift': 'Alt+Shift', 'mod-alt-shift': 'Ctrl+Alt+Shift',
 };
 const TRIGGERS_MAC: Partial<Record<DragTrigger, string>> = {
-  off: 'Off', alt: 'Option (Alt)', shift: 'Shift', mod: 'Cmd', ctrl: 'Control',
+  off: 'Off', alt: 'Option', shift: 'Shift', mod: 'Cmd', ctrl: 'Control',
   'mod-alt': 'Cmd+Option', 'mod-shift': 'Cmd+Shift', 'ctrl-alt': 'Control+Option', 'ctrl-shift': 'Control+Shift',
   'alt-shift': 'Option+Shift', 'mod-alt-shift': 'Cmd+Option+Shift', 'ctrl-alt-shift': 'Control+Option+Shift',
 };

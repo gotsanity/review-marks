@@ -42,7 +42,7 @@ var TRIGGERS_PC = {
 };
 var TRIGGERS_MAC = {
   off: "Off",
-  alt: "Option (Alt)",
+  alt: "Option",
   shift: "Shift",
   mod: "Cmd",
   ctrl: "Control",
