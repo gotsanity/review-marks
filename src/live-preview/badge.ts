@@ -1,6 +1,7 @@
 import { WidgetType } from '@codemirror/view';
+import { createBadge } from '../badge';
 
-/** The pill after a Target that shows the start of its Comment. */
+/** The badge (see src/badge.ts) as a CodeMirror widget, replacing the `}[^rN]` marker. */
 export class BadgeWidget extends WidgetType {
 	constructor(
 		readonly id: string,
@@ -14,17 +15,10 @@ export class BadgeWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		return createSpan({ cls: 'rm-badge', text: this.text, attr: { 'data-rm-id': this.id } });
+		return createBadge(this.id, this.text);
 	}
 
 	ignoreEvent(): boolean {
 		return true;
 	}
-}
-
-/** What the badge says: the excerpt, "…" while a new Comment is typed, or the marker if the definition is missing. */
-export function badgeText(id: string, comment: string | null, typing: boolean, excerptOf: (c: string) => string): string {
-	if (typing) return '…';
-	if (comment === null) return `[^${id}]?`;
-	return excerptOf(comment);
 }

@@ -4,7 +4,6 @@
 import { MarkdownView, TFile, type App, type MarkdownPostProcessorContext, type Plugin } from 'obsidian';
 import type { RenderedSection } from '../drag/reading-target';
 import {
-	excerpt,
 	footnoteListLabels,
 	isReviewLabel,
 	lineOfOffset,
@@ -14,7 +13,7 @@ import {
 	type Annotation,
 	type AnnotationDoc,
 } from '../core';
-import { badgeText } from '../live-preview/badge';
+import { badgeLabel, createBadge } from '../badge';
 import type { CommentPopover } from '../popover/popover';
 import { decorateRendered } from '../rendered/decorate';
 import type { ReviewMarksSettings } from '../settings';
@@ -92,14 +91,7 @@ function decorateSection(
 	const from = starts[lineStart] ?? doc.text.length;
 	const next = starts[lineEnd + 1];
 	const to = next === undefined ? doc.text.length : next - 1;
-	const badge = (a: Annotation) =>
-		settings.showBadge
-			? createSpan({
-					cls: 'rm-badge',
-					text: badgeText(a.id, a.definition?.comment ?? null, false, (c) => excerpt(c, settings.excerptLength)),
-					attr: { 'data-rm-id': a.id },
-				})
-			: null;
+	const badge = (a: Annotation) => (settings.showBadge ? createBadge(a.id, badgeLabel(a, settings.excerptLength, false)) : null);
 	const decorated = decorateRendered(el, doc.text, { from, to }, doc.annotations, badge);
 	// After decorating: `decorateRendered` first clears any `rm-hidden` it finds in the section.
 	decorateFootnoteList(el, doc.text, settings.hideReviewFootnotes);

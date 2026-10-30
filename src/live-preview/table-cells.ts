@@ -6,12 +6,12 @@
 import { editorLivePreviewField } from 'obsidian';
 import type { Extension } from '@codemirror/state';
 import { ViewPlugin, type EditorView, type ViewUpdate } from '@codemirror/view';
-import { excerpt, type Annotation } from '../core';
+import type { Annotation } from '../core';
 import { provisionalId } from '../apply/provisional';
 import { isTableCellEditor, liveTableCells } from '../guards';
 import { decorateRendered, undecorate } from '../rendered/decorate';
 import type { ReviewMarksSettings } from '../settings';
-import { badgeText } from './badge';
+import { badgeLabel, createBadge } from '../badge';
 import { annotationsField } from './live-preview';
 
 /** Set on a decorated cell: what it was decorated for, so unchanged cells are left alone. */
@@ -23,9 +23,8 @@ function decorateTables(view: EditorView, settings: ReviewMarksSettings): void {
 	const annotations = state.field(annotationsField, false) ?? [];
 	const typing = provisionalId(state);
 	const text = state.doc.toString();
-	const badgeOf = (a: Annotation) => badgeText(a.id, a.definition?.comment ?? null, typing === a.id, (c) => excerpt(c, settings.excerptLength));
-	const badge = (a: Annotation) =>
-		settings.showBadge ? createSpan({ cls: 'rm-badge', text: badgeOf(a), attr: { 'data-rm-id': a.id } }) : null;
+	const badgeOf = (a: Annotation) => badgeLabel(a, settings.excerptLength, typing === a.id);
+	const badge = (a: Annotation) => (settings.showBadge ? createBadge(a.id, badgeOf(a)) : null);
 
 	for (const cells of liveTableCells(view)) {
 		for (const cell of cells) {
