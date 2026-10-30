@@ -50,7 +50,9 @@ export type RefusalReason =
 	| 'crosses-blocks'
 	| 'in-definition'
 	| 'overlaps-annotation'
-	| 'unbalanced-braces';
+	| 'unbalanced-braces'
+	| 'not-found'
+	| 'empty-comment';
 
 /** Where the definition of a new Annotation goes. */
 export type Placement = 'end-of-section' | 'end-of-note';
