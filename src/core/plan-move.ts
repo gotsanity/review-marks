@@ -1,5 +1,5 @@
 import { lineChanges } from './line-diff';
-import { lineStarts } from './parse';
+import { lineOfOffset, lineStarts } from './parse';
 import { codeLines, isHeadingLine } from './sections';
 import type { AnnotationDoc, Change, Placement } from './types';
 
@@ -35,16 +35,7 @@ export function planMoveComments(doc: AnnotationDoc, placement: Placement): Move
 	const raw = (hadFinalBreak ? text.slice(0, -1) : text).split('\n');
 	const starts = lineStarts(text);
 	const inCode = codeLines(raw);
-	const lineOf = (offset: number) => {
-		let lo = 0;
-		let hi = starts.length - 1;
-		while (lo < hi) {
-			const mid = (lo + hi + 1) >> 1;
-			if ((starts[mid] ?? 0) <= offset) lo = mid;
-			else hi = mid - 1;
-		}
-		return lo;
-	};
+	const lineOf = (offset: number) => lineOfOffset(starts, offset);
 
 	const movable = doc.annotations
 		.filter((a) => a.definition && !inCode[lineOf(a.definition.from)])
