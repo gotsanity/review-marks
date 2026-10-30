@@ -27,10 +27,29 @@ const focusField = StateField.define<boolean>({
 });
 const focusTracker = [
   EditorView.focusChangeEffect.of((_s, focusing) => setFocus.of(focusing)),
-  // An editor that already has focus when the extension loads (plugin reload) gets no focus event.
+  // CodeMirror drops its focus transaction when another one lands first (focus() then setCursor(),
+  // as a jump from the sidebar does), and an editor focused before the plugin loaded gets no focus
+  // event. So after every update, and on focus and blur, compare the field with the real focus.
   ViewPlugin.define((view) => {
-    const raf = window.requestAnimationFrame(() => { if (view.hasFocus) view.dispatch({ effects: setFocus.of(true) }); });
-    return { destroy: () => window.cancelAnimationFrame(raf) };
+    let pending = false;
+    const sync = () => {
+      if (pending) return;
+      pending = true;
+      queueMicrotask(() => {
+        pending = false;
+        if (!view.dom.isConnected) return;
+        const f = view.hasFocus;
+        if (view.state.field(focusField, false) !== f) view.dispatch({ effects: setFocus.of(f) });
+      });
+    };
+    const late = () => window.setTimeout(sync, 0);
+    view.contentDOM.addEventListener('focus', late);
+    view.contentDOM.addEventListener('blur', late);
+    window.requestAnimationFrame(sync);
+    return {
+      update: (u: ViewUpdate) => { if (u.view.hasFocus !== u.state.field(focusField, false)) sync(); },
+      destroy: () => { view.contentDOM.removeEventListener('focus', late); view.contentDOM.removeEventListener('blur', late); },
+    };
   }),
 ];
 
@@ -58,7 +77,9 @@ function build(s: EditorState): DecorationSet {
       for (let l = l1; l <= l2; l++) out.push(Decoration.line({ class: 'rm-def-line' }).range(doc.line(l).from));
     }
     if (a.open < 0) continue;
-    const touched = s.field(focusField, false) === true && s.selection.ranges.some((r) => r.from <= a.refEnd && r.to >= a.open);
+    // Revealed while the cursor is inside, from just before '{' up to (not including) just after ']'.
+    // A cursor right after the marker leaves the syntax hidden, so typing on after a new annotation is calm.
+    const touched = s.field(focusField, false) === true && s.selection.ranges.some((r) => r.from < a.refEnd && r.to >= a.open);
     // Target highlight, split per line; blank lines and table rows (drawn by the widget) skipped.
     const mark = Decoration.mark({ class: 'rm-target' + (touched ? ' rm-revealed' : ''), attributes: { 'data-rm-id': a.id } });
     for (let pos = a.open + 1; pos < a.close;) {
