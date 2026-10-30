@@ -1,5 +1,5 @@
-// PROTOTYPE (throwaway). Shared UI: comment popover, badge, target wiring, comment modal.
-import { App, Component, MarkdownRenderer, Modal, Notice, Platform } from 'obsidian';
+// PROTOTYPE (throwaway). Shared UI: comment popover, badge, target wiring.
+import { App, Component, MarkdownRenderer, Platform } from 'obsidian';
 import { Annotation, excerpt } from './parse';
 import { settings } from './settings';
 
@@ -75,33 +75,14 @@ export function wireTarget(el: HTMLElement, a: Annotation, sourcePath: string, i
   }
 }
 
+/** The new Annotation whose Comment is being typed in the comment box ("path#id"); its badge shows "…". */
+let pendingBadge = '';
+export function setPendingBadge(path: string, id: string) { pendingBadge = id ? `${path}#${id}` : ''; }
+
 export function makeBadge(a: Annotation, sourcePath: string): HTMLElement {
   const el = createSpan({ cls: 'rm-badge', attr: { 'data-rm-id': a.id, 'aria-label': 'Comment' } });
-  el.setText(a.comment ? excerpt(a.comment, settings.excerptLength) : `[^${a.id}]?`);
+  const typing = !a.comment && pendingBadge === `${sourcePath}#${a.id}`;
+  el.setText(a.comment ? excerpt(a.comment, settings.excerptLength) : typing ? '…' : `[^${a.id}]?`);
   wireTarget(el, a, sourcePath, true);
   return el;
-}
-
-// ---------- modal ----------
-
-export class CommentModal extends Modal {
-  constructor(app: App, private heading: string, private initial: string, private onSubmit: (s: string) => void) {
-    super(app);
-  }
-  onOpen() {
-    this.titleEl.setText(this.heading);
-    const ta = this.contentEl.createEl('textarea', { cls: 'rm-textarea' });
-    ta.value = this.initial;
-    this.contentEl.createDiv({ cls: 'rm-hint', text: 'Enter for a new line, Ctrl/Cmd+Enter to save.' });
-    const submit = () => {
-      const v = ta.value.replace(/\s+$/, '').replace(/^\s*\n/, '');
-      if (!v.trim()) { new Notice('Review Marks: the comment is empty.'); return; }
-      this.close();
-      this.onSubmit(v);
-    };
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } });
-    this.contentEl.createEl('button', { text: 'Save', cls: 'mod-cta' }).addEventListener('click', submit);
-    window.setTimeout(() => ta.focus(), 0);
-  }
-  onClose() { this.contentEl.empty(); }
 }

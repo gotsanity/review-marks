@@ -67,15 +67,6 @@
   border-left: 3px solid rgba(255, 140, 0, 0.6);
 }
 
-.rm-textarea {
-  width: 100%;
-  min-height: 7em;
-}
-.rm-hint {
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  margin: 4px 0 8px;
-}
 
 /* ---------- Annotations sidebar ---------- */
 .rm-sidebar { padding: 8px 8px 24px; }

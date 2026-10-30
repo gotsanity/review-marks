@@ -82,9 +82,17 @@ export function checkTarget(text: string, f: number, t: number): { from: number;
 
 /** Wraps the Target and writes the definition in one transaction (one undo step). Returns the new id. */
 export function createAnnotation(editor: Editor, from: EditorPosition, to: EditorPosition, comment: string): string | null {
-  const text = editor.getValue();
-  const r = checkTarget(text, editor.posToOffset(from), editor.posToOffset(to));
-  if (typeof r === 'string') { new Notice('Review Marks: ' + r); return null; }
+  const plan = annotationInserts(editor.getValue(), editor.posToOffset(from), editor.posToOffset(to), comment);
+  if (typeof plan === 'string') { new Notice('Review Marks: ' + plan); return null; }
+  const changes = plan.inserts.map((c) => { const p = editor.offsetToPos(c.from); return { from: p, to: p, text: c.insert }; });
+  editor.transaction({ changes });
+  return plan.id;
+}
+
+/** The inserts that create an Annotation over [f, t) of text (offsets in that text), or why it can't. */
+export function annotationInserts(text: string, f: number, t: number, comment: string): { id: string; inserts: { from: number; insert: string }[] } | string {
+  const r = checkTarget(text, f, t);
+  if (typeof r === 'string') return r;
   const { anns } = analyze(text);
   const id = nextId(anns);
   const plan = planDefinition(text, anns, r.to, settings.placement, defText(id, comment));
@@ -94,12 +102,7 @@ export function createAnnotation(editor: Editor, from: EditorPosition, to: Edito
   put(r.from, '{');
   put(r.to, `}[^${id}]`);
   put(plan.at, plan.insert, plan.at === r.from);
-  const changes = [...ins].sort((a, b) => a[0] - b[0]).map(([at, s]) => {
-    const p = editor.offsetToPos(at);
-    return { from: p, to: p, text: s };
-  });
-  editor.transaction({ changes });
-  return id;
+  return { id, inserts: [...ins].sort((a, b) => a[0] - b[0]).map(([from, insert]) => ({ from, insert })) };
 }
 
 function commentChange(text: string, id: string, comment: string): { from: number; to: number; insert: string } | null {

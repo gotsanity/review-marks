@@ -1,14 +1,14 @@
 // PROTOTYPE (throwaway). Review Marks B+ re-prototype of issue #6. Wiring only.
 //   src/parse.ts           parser, block/section helpers, definition placement
 //   src/settings.ts        settings, defaults, settings tab
-//   src/ui.ts              popover, badge, comment modal
+//   src/ui.ts              popover, badge
 //   src/render-dom.ts      decorates rendered HTML (Reading view sections, Live Preview table cells)
 //   src/render-live.ts     Live Preview
 //   src/render-reading.ts  Reading view
 //   src/commands.ts        commands, createAnnotation(), writeComment()
 //   src/convert.ts         Move comments to end of note / end of sections
 //   src/sidebar.ts         annotations sidebar (ItemView), unwrapAnnotation()
-//   src/comment-box.ts     inline comment box (replaces the modal)
+//   src/comment-box.ts     inline comment box
 //   src/drag.ts            annotate-on-drag gesture; src/dom-map.ts maps rendered selections to source
 // No tests, minimal error handling.
 import { Plugin } from 'obsidian';

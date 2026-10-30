@@ -2,36 +2,38 @@
 // Replaces the comment modal. The editor never scrolls for it; the box follows the Target instead.
 //   annotateWithBox(editor, from, to, refocus)  create an Annotation with an empty Comment, then open the box
 //   editWithBox(editor, id, refocus)            open the box on an existing Comment
-// Enter saves, Shift+Enter is a new line. Esc (or clicking away with nothing typed) cancels; for a new
-// Annotation, cancelling removes it again, outside the undo history.
-import { Editor, EditorPosition, Platform } from 'obsidian';
+// Desktop: Enter saves, Shift+Enter is a new line. Mobile: Enter is a new line, only the Save button saves.
+// Esc (or clicking away with nothing typed) cancels.
+// A new Annotation is first written outside the undo history. Saving takes it out and writes it again,
+// with its Comment, as one undo step; cancelling only takes it out. Either way no stray undo step is left.
+import { Editor, EditorPosition, Notice, Platform, editorInfoField } from 'obsidian';
 import { ChangeSet, Text, Transaction } from '@codemirror/state';
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { analyze } from './parse';
-import { createAnnotation, writeComment } from './commands';
-import { hidePopover } from './ui';
+import { annotationInserts, createAnnotation, writeComment } from './commands';
+import { hidePopover, setPendingBadge } from './ui';
 
 // @ts-expect-error Obsidian exposes the CM6 EditorView as editor.cm.
 const cmOf = (editor: Editor): EditorView | undefined => editor.cm;
 
-// ---------- change capture (so a cancel can undo exactly what createAnnotation did) ----------
+// ---------- change capture (so save and cancel take out exactly the provisional Annotation) ----------
 
-interface Capture { view: EditorView; created: ChangeSet | null; startDoc: Text | null; later: ChangeSet | null; recording: boolean }
+interface Capture { view: EditorView; created: ChangeSet; startDoc: Text; later: ChangeSet | null }
 const captures = new Set<Capture>();
 
-/** Register with registerEditorExtension. Records the creating transaction and every change after it. */
+/** Register with registerEditorExtension. Records every change made after a provisional Annotation. */
 export const commentBoxExtension = ViewPlugin.define(() => ({
   update(u: ViewUpdate) {
     if (!u.docChanged) return;
-    for (const c of captures) {
-      if (c.view !== u.view) continue;
-      if (c.recording) {
-        c.created = c.created ? c.created.compose(u.changes) : u.changes;
-        if (!c.startDoc) c.startDoc = u.startState.doc;
-      } else c.later = c.later ? c.later.compose(u.changes) : u.changes;
-    }
+    for (const c of captures) if (c.view === u.view) c.later = c.later ? c.later.compose(u.changes) : u.changes;
   },
 }));
+
+/** The changes that take the provisional Annotation out of the current doc. */
+function revertOf(cap: Capture): ChangeSet {
+  const inv = cap.created.invert(cap.startDoc);
+  return cap.later ? inv.map(cap.later) : inv;
+}
 
 /** The Reviewer never moves: Editor.transaction scrolls the selection into view, so undo that. */
 function keepScroll<T>(cm: EditorView | undefined, f: () => T): T {
@@ -66,13 +68,22 @@ export function commitActiveBox() { if (active) finish(active, 'away'); }
 export function annotateWithBox(editor: Editor, from: EditorPosition, to: EditorPosition, refocus: boolean): string | null {
   commitActiveBox();
   const cm = cmOf(editor);
-  const cap: Capture | null = cm ? { view: cm, created: null, startDoc: null, later: null, recording: true } : null;
-  if (cap) captures.add(cap);
-  const id = keepScroll(cm, () => createAnnotation(editor, from, to, ''));
-  if (cap) cap.recording = false;
-  if (!id) { if (cap) captures.delete(cap); return null; }
-  open(editor, id, '', true, refocus, cap);
-  return id;
+  if (!cm) {
+    const id = createAnnotation(editor, from, to, '');
+    if (id) open(editor, id, '', true, refocus, null);
+    return id;
+  }
+  const startDoc = cm.state.doc;
+  const plan = annotationInserts(startDoc.toString(), editor.posToOffset(from), editor.posToOffset(to), '');
+  if (typeof plan === 'string') { new Notice('Review Marks: ' + plan); return null; }
+  const created = ChangeSet.of(plan.inserts, startDoc.length);
+  // The badge shows "…" while the Comment is being typed.
+  setPendingBadge(cm.state.field(editorInfoField, false)?.file?.path ?? '', plan.id);
+  keepScroll(cm, () => cm.dispatch({ changes: created, annotations: Transaction.addToHistory.of(false) }));
+  const cap: Capture = { view: cm, created, startDoc, later: null };
+  captures.add(cap);
+  open(editor, plan.id, '', true, refocus, cap);
+  return plan.id;
 }
 
 export function editWithBox(editor: Editor, id: string, refocus: boolean) {
@@ -87,7 +98,7 @@ function open(editor: Editor, id: string, initial: string, isNew: boolean, refoc
   const ta = el.createEl('textarea', { cls: 'rm-cbox-input', attr: { rows: '1', placeholder: 'Write a comment…', spellcheck: 'true' } });
   ta.value = initial;
   const foot = el.createDiv({ cls: 'rm-cbox-foot' });
-  foot.createSpan({ cls: 'rm-cbox-hint', text: 'Enter saves · Shift+Enter new line · Esc cancels' });
+  foot.createSpan({ cls: 'rm-cbox-hint', text: Platform.isMobile ? '' : 'Enter saves · Shift+Enter new line · Esc cancels' });
   const cancelBtn = foot.createEl('button', { cls: 'rm-cbox-btn', text: 'Cancel' });
   const saveBtn = foot.createEl('button', { cls: 'rm-cbox-btn mod-cta', text: 'Save' });
 
@@ -99,7 +110,8 @@ function open(editor: Editor, id: string, initial: string, isNew: boolean, refoc
 
   ta.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); finish(b, 'save'); }
+    // Mobile: Enter is a new line (the on-screen keyboard has no Shift+Enter); only Save saves.
+    if (e.key === 'Enter' && !e.shiftKey && !Platform.isMobile) { e.preventDefault(); e.stopPropagation(); finish(b, 'save'); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(b, 'cancel'); }
   });
   ta.addEventListener('input', () => { grow(ta); place(b); });
@@ -138,30 +150,63 @@ function grow(ta: HTMLTextAreaElement) {
 
 function finish(b: Box, how: 'save' | 'cancel' | 'away') {
   if (active !== b) return;
+  const v = b.ta.value.replace(/\s+$/, '').replace(/^\s*\n/, '');
+  const alive = !b.cm || b.cm.dom.isConnected;
+  if (alive && how === 'save' && !b.isNew && !v.trim()) {
+    new Notice('Review Marks: the comment is empty. Use unwrap in the annotations sidebar to remove the annotation.');
+    return;
+  }
   active = null;
   for (const f of b.off) f();
   b.el.remove();
   document.body.removeClass('rm-cbox-open');
-  const v = b.ta.value.replace(/\s+$/, '').replace(/^\s*\n/, '');
-  const alive = !b.cm || b.cm.dom.isConnected;
+  setPendingBadge('', '');
+  let caretAt: number | null = null;
   if (alive) {
     if (how === 'cancel' || !v.trim()) { if (b.isNew) removeNew(b); }
+    else if (b.isNew && b.cap) caretAt = keepScroll(b.cm, () => commitNew(b, b.cap!, v));
     else if (b.isNew || v !== b.initial) keepScroll(b.cm, () => void writeComment(b.editor, b.id, v));
   }
   if (b.cap) captures.delete(b.cap);
-  if (alive && b.refocus) b.cm ? b.cm.focus() : b.editor.focus();
+  if (!alive) return;
+  if (how === 'save' && caretAt !== null && b.cm) {
+    // Back to the note, just after the marker: the syntax stays hidden and nothing scrolls.
+    const cm = b.cm, at = caretAt;
+    keepScroll(cm, () => { cm.dispatch({ selection: { anchor: at } }); cm.focus(); });
+  } else if (b.refocus) b.cm ? b.cm.focus() : b.editor.focus();
 }
 
 /** Takes the just-created Annotation out again, without adding an undo step. */
 function removeNew(b: Box) {
-  const cap = b.cap;
-  if (cap && cap.created && cap.startDoc) {
-    let inv = cap.created.invert(cap.startDoc);
-    if (cap.later) inv = inv.map(cap.later);
-    cap.view.dispatch({ changes: inv, annotations: Transaction.addToHistory.of(false) });
+  if (b.cap) {
+    b.cap.view.dispatch({ changes: revertOf(b.cap), annotations: Transaction.addToHistory.of(false) });
     return;
   }
   b.editor.undo();
+}
+
+/**
+ * Replaces the provisional Annotation (outside the history) with the same Annotation and its Comment,
+ * written as one undo step. Returns the offset just after the marker.
+ */
+function commitNew(b: Box, cap: Capture, v: string): number | null {
+  const cm = cap.view;
+  const doc = cm.state.doc;
+  const a = analyze(doc.toString()).anns.find((x) => x.id === b.id);
+  if (a && a.open >= 0) {
+    const revert = revertOf(cap);
+    const base = revert.apply(doc);
+    const plan = annotationInserts(base.toString(), revert.mapPos(a.open + 1, -1), revert.mapPos(a.close, 1), v);
+    if (typeof plan !== 'string') {
+      cm.dispatch({ changes: revert, annotations: Transaction.addToHistory.of(false) });
+      // A userEvent the history never joins with the typing before it.
+      cm.dispatch({ changes: plan.inserts, userEvent: 'input.annotate' });
+      return analyze(cm.state.doc.toString()).anns.find((x) => x.id === plan.id)?.refEnd ?? null;
+    }
+  }
+  // The provisional Annotation was changed meanwhile: keep it and just write the Comment.
+  void writeComment(b.editor, b.id, v);
+  return analyze(cm.state.doc.toString()).anns.find((x) => x.id === b.id)?.refEnd ?? null;
 }
 
 // ---------- placement ----------
