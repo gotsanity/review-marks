@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../../test/e2e/vaults/review-samples/Review sample - end of section.md?raw';
-import { normalizeLineEndings, parse } from './parse';
+import { normalizeLineEndings, parse } from './index';
 
 describe('parse: the 12-case sample note', () => {
 	const text = normalizeLineEndings(sample);

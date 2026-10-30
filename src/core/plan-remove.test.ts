@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges } from './changes';
-import { parse } from './parse';
-import { planRemove } from './plan-remove';
-import { isRefusal } from './types';
+import { applyChanges, isRefusal, parse, planRemove } from './index';
 
 function remove(text: string, id: string): string {
 	const plan = planRemove(parse(text), id);

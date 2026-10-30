@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { footnoteListLabels, footnoteOrder, isReviewLabel } from './footnotes';
+import { footnoteListLabels, footnoteOrder, isReviewLabel } from './index';
 
 describe('footnoteOrder', () => {
 	it('lists defined labels in order of their first reference, as Reading view numbers them', () => {

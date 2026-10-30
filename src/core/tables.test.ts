@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDelimiterRow, tableCells } from './tables';
+import { isDelimiterRow, tableCells } from './index';
 
 const texts = (line: string) => tableCells(line).map((c) => line.slice(c.from, c.to));
 

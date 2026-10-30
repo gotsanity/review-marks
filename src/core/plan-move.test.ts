@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import endOfNote from '../../test/e2e/vaults/review-samples/Review sample - end of note.md?raw';
 import endOfSection from '../../test/e2e/vaults/review-samples/Review sample - end of section.md?raw';
-import { applyChanges } from './changes';
-import { parse } from './parse';
-import { planMoveComments } from './plan-move';
-import { isRefusal, type Placement } from './types';
+import { applyChanges, isRefusal, parse, type Placement, planMoveComments } from './index';
 
 /** Moves the comments of `text` to `placement` and returns the new text. */
 function move(text: string, placement: Placement): string {

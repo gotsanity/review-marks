@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { annotationAt, adjacentAnnotation } from './navigate';
-import { parse } from './parse';
+import { adjacentAnnotation, annotationAt, parse } from './index';
 
 const TEXT = 'Alpha {beta}[^r1] gamma {delta {eps}[^r3]}[^r2].\n\n[^r1]: One.\n[^r2]: Two.\n[^r3]: Three.\n[^r9]: Lost.\n';
 const at = (s: string, plus = 0) => TEXT.indexOf(s) + plus;

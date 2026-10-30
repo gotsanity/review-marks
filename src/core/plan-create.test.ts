@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges } from './changes';
-import { parse } from './parse';
-import { nextId, planCreate } from './plan-create';
-import { isRefusal, type Placement } from './types';
+import { applyChanges, isRefusal, nextId, parse, type Placement, planCreate } from './index';
 
 /** Annotates the first occurrence of `target` in `text` and returns the new text. */
 function annotate(text: string, target: string, comment: string, placement: Placement = 'end-of-section'): string {
