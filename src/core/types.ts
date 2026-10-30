@@ -48,9 +48,12 @@ export interface Refusal {
 export type RefusalReason =
 	| 'empty-selection'
 	| 'crosses-blocks'
+	| 'crosses-table-cells'
 	| 'in-definition'
 	| 'overlaps-annotation'
-	| 'unbalanced-braces';
+	| 'unbalanced-braces'
+	| 'not-found'
+	| 'empty-comment';
 
 /** Where the definition of a new Annotation goes. */
 export type Placement = 'end-of-section' | 'end-of-note';

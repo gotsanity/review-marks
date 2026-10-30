@@ -44,15 +44,9 @@ body {
 	text-indent: 0;
 }
 
-/* ---------- Reading view (src/reading-view, src/rendered) ---------- */
-
+/* Syntax hidden inside rendered HTML (Reading view, Live Preview table cells, src/rendered). */
 .rm-hidden {
 	display: none;
-}
-
-.rm-target.rm-nested {
-	border-bottom-style: double;
-	border-bottom-width: 3px;
 }
 
 /* ---------- Comment popover (src/popover) ---------- */
@@ -136,4 +130,26 @@ body {
 	padding: 2px 10px;
 	height: auto;
 	font-size: var(--font-ui-smaller);
+}
+
+/* ---------- Annotate on drag (src/drag) ---------- */
+
+.rm-drag-sel {
+	background-color: var(--text-selection);
+}
+
+/* ---------- Navigation (src/commands/navigate.ts) ---------- */
+
+.rm-target.rm-flash {
+	animation: rm-flash 1.2s ease-out;
+}
+
+@keyframes rm-flash {
+	0%,
+	40% {
+		background-color: var(--rm-accent);
+	}
+	100% {
+		background-color: var(--rm-highlight);
+	}
 }

@@ -1,10 +1,19 @@
 // Wiring only. Format rules live in src/core, change application in src/apply.
-import { Plugin } from 'obsidian';
+import { Platform, Plugin } from 'obsidian';
 import { provisionalField } from './apply/provisional';
 import { registerAnnotateSelection } from './commands/annotate-selection';
+import { registerContextMenu } from './commands/context-menu';
+import { registerMoveComments } from './commands/move-comments';
+import { registerNavigation } from './commands/navigate';
+import { registerRemoveAnnotation } from './commands/remove-annotation';
 import { closeActiveCommentBox } from './comment-box/comment-box';
+import { editorDrag } from './drag/editor-drag';
+import { addDragTriggerSetting } from './drag/setting';
+import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
 import { livePreviewPopover } from './live-preview/popover';
+import { tableCellDecorations } from './live-preview/table-cells';
+import { addPlacementSetting } from './placement-setting';
 import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
 import { displaySettings } from './settings-tab/display';
@@ -27,10 +36,28 @@ export default class ReviewMarksPlugin extends Plugin {
 		this.addSettingTab(this.settingsTab);
 		const popover = new CommentPopover(this.app, this, settings);
 
-		this.registerEditorExtension([provisionalField, livePreview(settings), livePreviewPopover(popover)]);
+		this.registerEditorExtension([
+			provisionalField,
+			livePreview(settings),
+			tableCellDecorations(settings),
+			livePreviewPopover(popover),
+		]);
 		registerAnnotateSelection(this, settings);
 		registerReadingView(this, settings, popover);
+		registerMoveComments(this);
+		this.registerEditorExtension(editorDrag(settings, Platform.isMacOS));
+		this.registerEditorExtension(backspaceExtension);
+		registerRemoveAnnotation(this);
+		registerNavigation(this);
+		registerContextMenu(this, settings);
+
+		this.settingsTab.addSection(SECTION_ORDER.placement, (el, store) => {
+			addPlacementSetting(el, store.current.placement, (placement) => store.update({ placement }));
+		});
 		this.settingsTab.addSection(SECTION_ORDER.display, displaySettings);
+		this.settingsTab.addSection(SECTION_ORDER.drag, (el, store) => {
+			addDragTriggerSetting(el, store.current.dragTrigger, (dragTrigger) => store.update({ dragTrigger }));
+		});
 		this.register(
 			this.store.onChange(() => {
 				refreshLivePreviews(this.app);

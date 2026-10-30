@@ -1,7 +1,8 @@
 import type { Placement } from './core';
+import { DEFAULT_DRAG_TRIGGER, isDragTrigger, type DragTrigger } from './drag/trigger';
 
 export interface ReviewMarksSettings {
-	/** Where the Comment of a new Annotation is written. Its setting arrives with ticket #27. */
+	/** Where the Comment of a new Annotation is written. Its control is `addPlacementSetting`. */
 	placement: Placement;
 	/** Show a badge with the start of the Comment after each Target. */
 	showBadge: boolean;
@@ -11,6 +12,8 @@ export interface ReviewMarksSettings {
 	showHover: boolean;
 	/** Leave review footnotes out of Reading view's footnote list. */
 	hideReviewFootnotes: boolean;
+	/** Modifier keys held while drag-selecting to annotate at once (src/drag/trigger.ts). */
+	dragTrigger: DragTrigger;
 }
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
@@ -19,6 +22,7 @@ export const DEFAULT_SETTINGS: ReviewMarksSettings = {
 	excerptLength: 32,
 	showHover: true,
 	hideReviewFootnotes: true,
+	dragTrigger: DEFAULT_DRAG_TRIGGER,
 };
 
 const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -38,6 +42,7 @@ export function settingsFrom(data: unknown): ReviewMarksSettings {
 				: DEFAULT_SETTINGS.excerptLength,
 		showHover: bool(stored.showHover, DEFAULT_SETTINGS.showHover),
 		hideReviewFootnotes: bool(stored.hideReviewFootnotes, DEFAULT_SETTINGS.hideReviewFootnotes),
+		dragTrigger: isDragTrigger(stored.dragTrigger) ? stored.dragTrigger : DEFAULT_SETTINGS.dragTrigger,
 	};
 }
 

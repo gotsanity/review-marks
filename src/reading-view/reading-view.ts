@@ -3,13 +3,16 @@
 // (never `previewMode.renderer.sections`), parses it once, and decorates only its own lines.
 import { MarkdownView, TFile, type App, type Plugin } from 'obsidian';
 import {
+	excerpt,
 	footnoteListLabels,
 	isReviewLabel,
 	lineStarts,
 	normalizeLineEndings,
 	parse,
+	type Annotation,
 	type AnnotationDoc,
 } from '../core';
+import { badgeText } from '../live-preview/badge';
 import type { CommentPopover } from '../popover/popover';
 import { decorateRendered } from '../rendered/decorate';
 import type { ReviewMarksSettings } from '../settings';
@@ -92,16 +95,21 @@ function decorateSection(
 	const doc = parseCached(normalizeLineEndings(text));
 	if (!shapes.has(sourcePath)) shapes.set(sourcePath, shapeOf(doc));
 
-	decorateFootnoteList(el, doc.text, settings.hideReviewFootnotes);
-
 	const starts = lineStarts(doc.text);
 	const from = starts[lineStart] ?? doc.text.length;
 	const next = starts[lineEnd + 1];
 	const to = next === undefined ? doc.text.length : next - 1;
-	const decorated = decorateRendered(el, doc, from, to, {
-		showBadge: settings.showBadge,
-		excerptLength: settings.excerptLength,
-	});
+	const badge = (a: Annotation) =>
+		settings.showBadge
+			? createSpan({
+					cls: 'rm-badge',
+					text: badgeText(a.id, a.definition?.comment ?? null, false, (c) => excerpt(c, settings.excerptLength)),
+					attr: { 'data-rm-id': a.id },
+				})
+			: null;
+	const decorated = decorateRendered(el, doc.text, { from, to }, doc.annotations, badge);
+	// After decorating: `decorateRendered` first clears any `rm-hidden` it finds in the section.
+	decorateFootnoteList(el, doc.text, settings.hideReviewFootnotes);
 	if (!decorated) return;
 	popover.attach(el, (anchor) => {
 		const id = anchor.getAttribute('data-rm-id');

@@ -59,9 +59,8 @@ export class CommentPopover {
 			const anchor = anchorOf(e.target);
 			const ref = anchor && root.contains(anchor) ? resolve(anchor) : null;
 			if (!anchor || !ref || !this.click(anchor, ref, anchor.hasClass('rm-badge'))) return;
+			// The event goes on as usual: Live Preview's table widget needs it to open its cell editor.
 			this.handled.add(e);
-			e.preventDefault();
-			e.stopPropagation();
 		};
 		root.addEventListener('mouseover', over);
 		root.addEventListener('mouseout', out);
