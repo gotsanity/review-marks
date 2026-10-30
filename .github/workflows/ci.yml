@@ -74,6 +74,14 @@ jobs:
         env:
           WDIO_MAX_INSTANCES: 2
 
+      - name: Upload e2e debug artifacts # [DEBUG-e2el]
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: e2e-artifacts
+          if-no-files-found: ignore
+
   commitlint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

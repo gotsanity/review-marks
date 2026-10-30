@@ -111,6 +111,31 @@ export const config: WebdriverIO.Config = {
 			beforeEach: async () => (await import('./test/e2e/harness.ts')).freshState(),
 		},
 	},
+	// [DEBUG-e2el] on-failure screenshot and DOM/geometry dump
+	afterTest: async (test, _context, result) => {
+		if (result.passed) return;
+		const { browser } = await import('@wdio/globals');
+		const dir = path.resolve('e2e-artifacts');
+		fs.mkdirSync(dir, { recursive: true });
+		const ver = await browser.executeObsidian(() => require('electron').ipcRenderer.sendSync('version') as string).catch(() => 'unknown');
+		const name = `${ver}-${test.parent}-${test.title}`.replace(/[^\w.-]+/g, '_').slice(0, 150);
+		await browser.saveScreenshot(path.join(dir, `${name}.png`)).catch((e) => console.log('[DEBUG-e2el] screenshot failed', e));
+		const dump = await browser
+			.executeObsidian(({ app }) => ({
+				dpr: window.devicePixelRatio,
+				inner: [window.innerWidth, window.innerHeight],
+				outer: [window.outerWidth, window.outerHeight],
+				screen: [screen.width, screen.height],
+				ua: navigator.userAgent,
+				fonts: Array.from(document.fonts as unknown as Iterable<FontFace>).map((f) => `${f.family} ${f.status}`),
+				bodyFont: getComputedStyle(document.body).fontFamily,
+				dbg: (window as unknown as { __dbg?: unknown }).__dbg ?? null,
+				html: document.querySelector('.workspace-leaf.mod-active')?.outerHTML.slice(0, 200000) ?? '',
+				ws: app.workspace.containerEl.getBoundingClientRect().toJSON(),
+			}))
+			.catch((e) => ({ error: String(e) }));
+		fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(dump, null, 1));
+	},
 	waitforInterval: 250,
 	waitforTimeout: 5 * 1000,
 	logLevel: 'warn',
