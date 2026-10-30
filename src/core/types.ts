@@ -48,6 +48,7 @@ export interface Refusal {
 export type RefusalReason =
 	| 'empty-selection'
 	| 'crosses-blocks'
+	| 'crosses-table-cells'
 	| 'in-definition'
 	| 'overlaps-annotation'
 	| 'unbalanced-braces';

@@ -179,3 +179,46 @@ describe('planCreate: refusals', () => {
 		expect(refusal('a { b } c', 0, 4)).toBe('unbalanced-braces');
 	});
 });
+
+describe('planCreate: table cells', () => {
+	const TABLE =
+		'| Name | Result |\n|---|---|\n| Kell | 17 (fail) |\n| [[malas-vance\\|Malas Vance]] (the Peddler) | 26 |\n';
+	const refusal = (text: string, from: number, to: number) => {
+		const p = planCreate(parse(text), { from, to, comment: 'c', placement: 'end-of-note' });
+		return isRefusal(p) ? p : 'created';
+	};
+
+	it('wraps a Target inside one cell, trimming the cell padding', () => {
+		expect(annotate(TABLE, ' 17 (fail) ', 'DC 18?', 'end-of-note')).toBe(
+			'| Name | Result |\n|---|---|\n| Kell | {17 (fail)}[^r1] |\n' +
+				'| [[malas-vance\\|Malas Vance]] (the Peddler) | 26 |\n\n[^r1]: DC 18?\n',
+		);
+	});
+
+	it('accepts a wikilink whose alias bar is escaped with \\|', () => {
+		expect(annotate(TABLE, '[[malas-vance\\|Malas Vance]] (the Peddler)', 'Use "Vance".', 'end-of-note')).toContain(
+			'| {[[malas-vance\\|Malas Vance]] (the Peddler)}[^r1] | 26 |',
+		);
+	});
+
+	it('refuses a Target that crosses table cells', () => {
+		const from = TABLE.indexOf('Kell');
+		expect(refusal(TABLE, from, from + 'Kell | 17'.length)).toEqual({
+			refusal: 'crosses-table-cells',
+			message: 'a Target must stay within one table cell.',
+		});
+	});
+
+	it('refuses a selection that starts on a cell border', () => {
+		const from = TABLE.indexOf('| Kell');
+		expect(refusal(TABLE, from, from + 6)).toMatchObject({ refusal: 'crosses-table-cells' });
+	});
+
+	it('still refuses a selection across table rows as crossing blocks', () => {
+		expect(refusal(TABLE, TABLE.indexOf('17'), TABLE.indexOf('26'))).toMatchObject({ refusal: 'crosses-blocks' });
+	});
+
+	it('does not take a | outside a table for a cell border', () => {
+		expect(refusal('Either a | b here.', 0, 12)).toBe('created');
+	});
+});

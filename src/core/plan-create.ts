@@ -1,5 +1,6 @@
 import { definitionText } from './definition';
 import { blockPrefixLength, headingStarts, isTableLine } from './sections';
+import { cellBorders } from './tables';
 import type { AnnotationDoc, Change, Placement, Refusal } from './types';
 
 export interface CreateRequest {
@@ -72,6 +73,9 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	}
 	if (headingStarts(text).includes(lineStartOf(text, f)) && span.includes('\n')) {
 		return refuse('crosses-blocks', 'a Target must stay within one paragraph.');
+	}
+	if (isTableLine(lineAt(text, f)) && cellBorders(span).length > 0) {
+		return refuse('crosses-table-cells', 'a Target must stay within one table cell.');
 	}
 
 	const definitions = [
