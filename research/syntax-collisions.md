@@ -196,3 +196,11 @@ The **Footnotes view** core plugin "lists all footnotes in the active note" [HEL
 3. Handle duplicate and renamed IDs: renumber on paste or template insert, or flag duplicates in the sidebar.
 4. Make every render path consistent (PDF, `MarkdownRenderer` without section info, editor HTML copy). Today the export path leaves a `{`, keeps references and renumbers author footnotes wrongly.
 5. README "Known conflicts" section: the Linter rules *Footnote after punctuation* and *Re-index footnotes*; Footnote Shortcut lint (*Fix footnote reference placement*, *Numbered* naming, prefixes) and paste renaming; Outliner and Move line with cross-item Targets; Publish and Pandoc exports leaking Comments; Various Complements' exclude pattern.
+
+## Decisions for the user
+
+1. **Excalidraw files.** I recommend skipping them entirely. It's simple, and review work loses nothing. The alternative is to allow Annotations in the "back of the note" above `# Excalidraw Data`, with placement forced above that heading.
+2. **What exports show.** PDF, Copy document as HTML, Pandoc and Publish currently show a mix of braces, references and Comments. There are three options. Strip Annotations completely, so the Target is plain text and no Comments appear. Print Comments as real footnotes on purpose. Or highlight the Target and list the Comments. The plugin controls only the paths that run its post processor (PDF, `MarkdownRenderer`). Publish and tools that read raw markdown (Pandoc from markdown, showdown) always see the source.
+3. **Paste and duplicate IDs.** Renumber clashing `rN` IDs when text is pasted or a template is inserted. Or accept Footnote Shortcut's `rN-M` renames. Or only flag duplicates in the sidebar.
+4. **Endpoint refusals.** Adopt the wider refusal list in mitigation 1 (math, Templater and Templates tags, Dataview fields, link internals, HTML tags). Or keep the current rule (code and comments only) and document the rest.
+5. **Linter and Footnote Shortcut.** Document the conflicting rules only, or also repair the `{…}.[^rN]` shape those rules produce.
