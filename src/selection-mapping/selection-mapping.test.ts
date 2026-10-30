@@ -133,6 +133,15 @@ describe('mapSelection: table cells', () => {
 		expect(text.slice(r.from, r.to)).toBe('[[malas-vance\\|Malas Vance]] (the');
 	});
 
+	it("skips the table widget's drag handles", () => {
+		const cell = cells[1];
+		if (!cell) throw new Error('no cell');
+		const s = slice(`<div class="table-row-drag-handle">patron</div><div class="table-cell-wrapper">${cell.html}</div>`, text, cell.from, cell.to);
+		const r = mapSelection(text, [s], rangeOver(s.el.querySelector('.table-cell-wrapper') as HTMLElement, 'patron'));
+		if ('failure' in r) throw new Error(r.message);
+		expect(text.slice(r.from, r.to)).toBe('patron');
+	});
+
 	it('maps a selection across cells to a range across the cell border', () => {
 		const [a, b] = slices();
 		if (!a || !b) throw new Error('no cells');

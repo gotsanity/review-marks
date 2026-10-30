@@ -7,6 +7,7 @@
 // first selected character to just after the last, then snaps out so it never splits a link,
 // a formatting pair or an Annotation's syntax.
 import { parse } from '../core';
+import { isTableWidgetChrome } from '../guards';
 import { HIDDEN, SOFT, visibility, type Visibility } from './visibility';
 
 /** A rendered block and the source range `[from, to)` it was rendered from. */
@@ -27,10 +28,10 @@ export interface MappingFailure {
 	message: string;
 }
 
-/** Rendered content that has no counterpart in the slice's source text. */
+/** Rendered content that has no counterpart in the slice's source text (with a Live Preview table's own controls). */
 const SKIP =
 	'sup.footnote-ref, .rm-badge, .rm-hidden, .footnotes, section.footnotes, .frontmatter, .metadata-container, ' +
-	'.internal-embed, .math, .copy-code-button, .table-row-drag-handle, .table-col-drag-handle, .rm-cbox, .cm-editor';
+	'.internal-embed, .math, .copy-code-button, .rm-cbox, .cm-editor';
 
 /** How many source characters that do render may be skipped to find a match. */
 const MAX_SKIP = 12;
@@ -46,8 +47,10 @@ function renderedTextNodes(root: HTMLElement): Text[] {
 	const out: Text[] = [];
 	const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-		const skipped = n.parentElement?.closest(SKIP);
+		const parent = n.parentElement;
+		const skipped = parent?.closest(SKIP);
 		if (skipped && skipped !== root && root.contains(skipped)) continue;
+		if (parent && root.contains(parent) && isTableWidgetChrome(parent)) continue;
 		out.push(n as Text);
 	}
 	return out;
