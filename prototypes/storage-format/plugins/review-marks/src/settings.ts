@@ -8,7 +8,15 @@ export interface ReviewMarksSettings {
   excerptLength: number;
   showHover: boolean;
   hideReviewFootnotes: boolean;
+  dragTrigger: DragTrigger;
 }
+
+/** Modifiers held while drag-selecting to annotate. 'mod' is Ctrl, or Cmd on macOS. */
+export type DragTrigger = 'off' | 'alt' | 'mod' | 'shift' | 'meta' | 'mod-alt' | 'mod-shift' | 'alt-shift' | 'mod-alt-shift';
+export const DRAG_TRIGGERS: Record<DragTrigger, string> = {
+  off: 'Off', alt: 'Alt', mod: 'Ctrl (Cmd on macOS)', shift: 'Shift', meta: 'Meta (Windows key, Cmd on macOS)',
+  'mod-alt': 'Ctrl+Alt', 'mod-shift': 'Ctrl+Shift', 'alt-shift': 'Alt+Shift', 'mod-alt-shift': 'Ctrl+Alt+Shift',
+};
 
 export const DEFAULT_SETTINGS: ReviewMarksSettings = {
   placement: 'end-of-section',
@@ -16,6 +24,7 @@ export const DEFAULT_SETTINGS: ReviewMarksSettings = {
   excerptLength: 32,
   showHover: true,
   hideReviewFootnotes: true,
+  dragTrigger: 'alt',
 };
 
 /** The live settings. Every module reads this object; main.ts loads into it. */
@@ -82,5 +91,14 @@ export class ReviewMarksSettingTab extends PluginSettingTab {
       .setDesc('In Reading view, the footnote list at the end of the note leaves out [^r…] comments. Your other footnotes stay.')
       .addToggle((t) => t.setValue(settings.hideReviewFootnotes)
         .onChange(async (v) => { settings.hideReviewFootnotes = v; await saveSettings(this.plugin); }));
+
+    new Setting(containerEl)
+      .setName('Annotate-on-drag trigger')
+      .setDesc("Hold these keys while you drag-select text to annotate it at once. Works in Live Preview, Source mode and Reading view (which switches to Live Preview). The editor's own behaviour for this combination is turned off while the setting is on.")
+      .addDropdown((d) => {
+        for (const [k, label] of Object.entries(DRAG_TRIGGERS)) d.addOption(k, label);
+        d.setValue(settings.dragTrigger)
+          .onChange(async (v) => { settings.dragTrigger = v as DragTrigger; await saveSettings(this.plugin); });
+      });
   }
 }
