@@ -22,6 +22,14 @@ describe('settingsFrom', () => {
 	});
 });
 
+describe('settingsFrom: status bar count', () => {
+	it('shows the count by default and keeps a stored choice', () => {
+		expect(settingsFrom(null).showStatusBar).toBe(true);
+		expect(settingsFrom({ showStatusBar: false }).showStatusBar).toBe(false);
+		expect(settingsFrom({ showStatusBar: 'no' }).showStatusBar).toBe(true);
+	});
+});
+
 describe('settingsFrom: annotate-on-drag trigger', () => {
 	it('defaults to Alt', () => {
 		expect(settingsFrom(null).dragTrigger).toBe('alt');

@@ -6,7 +6,7 @@
 // reference, wrap the text between them, and add the badge. If the braces don't line up, the
 // HTML is left as it is (fail closed), so the reader sees the raw syntax rather than a wrong
 // highlight.
-import type { Annotation } from '../core';
+import { codeMask, type Annotation } from '../core';
 
 /** Rendered content that isn't part of the slice's text. */
 const SKIP = '.rm-badge, .cm-editor, .table-row-drag-handle, .table-col-drag-handle, .math, .internal-embed, .footnotes';
@@ -49,21 +49,23 @@ export function textNodes(root: HTMLElement): { nodes: Text[]; braces: (Spot & {
 	return { nodes, braces };
 }
 
-/** Offsets of the braces in `text[from, to)` that render as brace characters (not in code spans). */
+/** The code mask of the last note seen: every section of a note brings the same text. */
+let lastMask: { text: string; mask: Uint8Array } | null = null;
+function codeOf(text: string): Uint8Array {
+	if (lastMask?.text !== text) lastMask = { text, mask: codeMask(text) };
+	return lastMask.mask;
+}
+
+/** Offsets of the braces in `text[from, to)` that render as brace characters (not in code). */
 export function sourceBraces(text: string, from: number, to: number): number[] {
+	const inCode = codeOf(text);
 	const out: number[] = [];
 	for (let i = from; i < to; i++) {
+		if (inCode[i]) continue;
 		const c = text[i];
 		if (c === '\\') {
 			i++;
 			if (text[i] === '{' || text[i] === '}') out.push(i);
-		} else if (c === '`') {
-			let ticks = 1;
-			while (text[i + ticks] === '`') ticks++;
-			const fence = '`'.repeat(ticks);
-			const end = text.indexOf(fence, i + ticks);
-			if (end > 0 && end < to && !text.slice(i, end).includes('\n\n')) i = end + ticks - 1;
-			else i += ticks - 1;
 		} else if (c === '{' || c === '}') out.push(i);
 	}
 	return out;
