@@ -71,6 +71,7 @@ The 12 cases:
 ## What to try
 
 - **Live Preview.** The Target is highlighted and the syntax is hidden. Put the cursor in a Target and the braces and marker come back at once, including right after a jump from the sidebar. They hide again when the cursor leaves or the editor loses focus. A cursor just after the marker counts as outside, so the syntax stays hidden there. Table cells (cases 8 and 9) work too.
+- **Backspace after a hidden marker.** In Live Preview, with the cursor just after `}[^rN]` and the syntax hidden, Backspace skips the marker and deletes the last character of the Target: `{abc}[^r1]|` becomes `{ab}[^r1]|`. When it would delete the Target's last character, the whole annotation goes instead: the character, the braces, the marker and the definition, as one undo step. With the syntax showing (cursor inside), and in Source mode, Backspace is normal.
 - **Reading view.** Same highlight and badge. The footnote list at the end leaves out the `[^r…]` entries but keeps your own footnotes.
 - **Badge.** A pill after each Target shows the start of the Comment. Click it to pin the full Comment. While you type the Comment of a new annotation, it shows "…".
 - **Hover.** Hover a Target or badge to see the full Comment. On mobile, tap instead.
@@ -132,6 +133,7 @@ It replaces the comment dialog everywhere, including both commands.
 | `convert.ts` | The two "Move comments to …" commands. |
 | `sidebar.ts` | The annotations sidebar (`ItemView`) and `unwrapAnnotation(editor \| file, id)`. |
 | `comment-box.ts` | Inline comment box. `annotateWithBox` creates an annotation and opens the box; `editWithBox` opens it on an existing one. |
+| `backspace.ts` | Live Preview Backspace just after a hidden `}[^rN]`. |
 | `drag.ts` | Annotate-on-drag gesture (editor, Live Preview table widget, Reading view). |
 | `dom-map.ts` | Maps a range in rendered HTML back to source offsets. |
 | `main.ts` | Wiring only. |

@@ -25,7 +25,7 @@ __export(main_exports, {
   writeComment: () => writeComment
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
@@ -1845,10 +1845,50 @@ function fit(ta) {
   ta.style.height = ta.scrollHeight + 2 + "px";
 }
 
-// src/drag.ts
+// src/backspace.ts
 var import_obsidian9 = require("obsidian");
 var import_state4 = require("@codemirror/state");
 var import_view4 = require("@codemirror/view");
+function run(view) {
+  const s = view.state;
+  if (!s.field(import_obsidian9.editorLivePreviewField, false)) return false;
+  if (s.selection.ranges.length !== 1 || !s.selection.main.empty) return false;
+  const pos = s.selection.main.head;
+  const anns = s.field(annotationsField, false);
+  if (!anns) return false;
+  let a = anns.find((x) => x.open >= 0 && x.refEnd === pos);
+  if (!a || isTableLine(s.doc.lineAt(a.close).text)) return false;
+  for (let inner; inner = anns.find((x) => x.open >= 0 && x.refEnd === a.close); ) a = inner;
+  const text = s.doc.sliceString(a.open + 1, a.close);
+  if (!text) return false;
+  let from = a.open + 1 + (0, import_state4.findClusterBreak)(text, text.length, false);
+  if (from > a.open + 1 && s.doc.sliceString(from - 1, from) === "\\") from--;
+  if (from > a.open + 1) {
+    view.dispatch({
+      changes: { from, to: a.close },
+      selection: import_state4.EditorSelection.cursor(pos - (a.close - from)),
+      userEvent: "delete.backward",
+      scrollIntoView: true
+    });
+    return true;
+  }
+  const ch = unwrapChanges(s.doc.toString(), a.id);
+  if (!ch) return false;
+  const changes = ch.map((c) => c.from === a.close ? { from: a.open + 1, to: c.to } : c);
+  view.dispatch({
+    changes,
+    userEvent: "input.unwrap",
+    // not a 'delete' event, so history never joins it with the Backspaces before
+    scrollIntoView: true
+  });
+  return true;
+}
+var backspaceExtension = import_state4.Prec.highest(import_view4.keymap.of([{ key: "Backspace", run }]));
+
+// src/drag.ts
+var import_obsidian10 = require("obsidian");
+var import_state5 = require("@codemirror/state");
+var import_view5 = require("@codemirror/view");
 
 // src/dom-map.ts
 var SKIP2 = "sup.footnote-ref, .rm-badge, .rm-hidden, .footnotes, section.footnotes, .frontmatter, .metadata-container, .internal-embed, .math, .copy-code-button, .table-row-drag-handle, .table-col-drag-handle, .rm-cbox, .markdown-preview-pusher, .mod-header, .mod-footer, .embedded-backlinks";
@@ -2000,16 +2040,16 @@ function snapRange(text, from, to) {
 
 // src/drag.ts
 var app4;
-var setDrag = import_state4.StateEffect.define();
-var dragMark = import_view4.Decoration.mark({ class: "rm-drag-sel" });
-var dragField = import_state4.StateField.define({
-  create: () => import_view4.Decoration.none,
+var setDrag = import_state5.StateEffect.define();
+var dragMark = import_view5.Decoration.mark({ class: "rm-drag-sel" });
+var dragField = import_state5.StateField.define({
+  create: () => import_view5.Decoration.none,
   update(v, tr) {
     v = v.map(tr.changes);
-    for (const e of tr.effects) if (e.is(setDrag)) v = e.value && e.value.to > e.value.from ? import_view4.Decoration.set([dragMark.range(e.value.from, e.value.to)]) : import_view4.Decoration.none;
+    for (const e of tr.effects) if (e.is(setDrag)) v = e.value && e.value.to > e.value.from ? import_view5.Decoration.set([dragMark.range(e.value.from, e.value.to)]) : import_view5.Decoration.none;
     return v;
   },
-  provide: (f) => import_view4.EditorView.decorations.from(f)
+  provide: (f) => import_view5.EditorView.decorations.from(f)
 });
 function registerDrag(plugin) {
   app4 = plugin.app;
@@ -2028,7 +2068,7 @@ function triggerHeld(e, trig = settings.dragTrigger) {
   const parts = trig.split("-");
   const want = { ctrl: parts.includes("ctrl"), meta: false, alt: parts.includes("alt"), shift: parts.includes("shift") };
   if (parts.includes("mod")) {
-    if (import_obsidian9.Platform.isMacOS) want.meta = true;
+    if (import_obsidian10.Platform.isMacOS) want.meta = true;
     else want.ctrl = true;
   }
   if (parts.includes("meta")) want.meta = true;
@@ -2037,7 +2077,7 @@ function triggerHeld(e, trig = settings.dragTrigger) {
 var cmOf2 = (v) => v.editor.cm;
 function viewOf(t) {
   for (const leaf of app4.workspace.getLeavesOfType("markdown")) {
-    if (leaf.view instanceof import_obsidian9.MarkdownView && leaf.view.containerEl.contains(t)) return leaf.view;
+    if (leaf.view instanceof import_obsidian10.MarkdownView && leaf.view.containerEl.contains(t)) return leaf.view;
   }
   return null;
 }
@@ -2171,7 +2211,7 @@ function tableDone(view, widget, range) {
   const text = doc.toString();
   const r = mapSelection(text, [{ el: widget, from: first.from, to: last.to }], range);
   if (typeof r === "string") {
-    new import_obsidian9.Notice("Review Marks: " + r);
+    new import_obsidian10.Notice("Review Marks: " + r);
     return;
   }
   const ed = view.editor;
@@ -2192,12 +2232,12 @@ async function readingDone(view, range) {
   });
   const r = mapSelection(text, slices, range);
   if (typeof r === "string") {
-    new import_obsidian9.Notice("Review Marks: " + r);
+    new import_obsidian10.Notice("Review Marks: " + r);
     return;
   }
   const ok = checkTarget(text, r.from, r.to);
   if (typeof ok === "string") {
-    new import_obsidian9.Notice("Review Marks: " + ok);
+    new import_obsidian10.Notice("Review Marks: " + ok);
     return;
   }
   const y = (_d = (_c = range.getClientRects()[0]) == null ? void 0 : _c.top) != null ? _d : range.getBoundingClientRect().top;
@@ -2215,7 +2255,7 @@ async function readingDone(view, range) {
 }
 
 // src/main.ts
-var ReviewMarksPlugin = class extends import_obsidian10.Plugin {
+var ReviewMarksPlugin = class extends import_obsidian11.Plugin {
   constructor() {
     super(...arguments);
     /** Also reachable as app.plugins.plugins['proto-review-marks'].api (handy from the console). */
@@ -2230,6 +2270,7 @@ var ReviewMarksPlugin = class extends import_obsidian10.Plugin {
     registerConvertCommands(this);
     registerSidebar(this);
     this.registerEditorExtension(commentBoxExtension);
+    this.registerEditorExtension(backspaceExtension);
     registerDrag(this);
     this.addSettingTab(new ReviewMarksSettingTab(this.app, this));
     onSettingsChange(() => {
