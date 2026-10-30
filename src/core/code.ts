@@ -9,6 +9,25 @@ import { codeLines } from './sections';
  * escaped.
  */
 export function codeMask(text: string): Uint8Array {
+	const mask = blockMask(text);
+	for (const s of spansOutside(text, mask)) mask.fill(1, s.from, s.to);
+	return mask;
+}
+
+/** An inline code span `[from, to)`, its `ticks` backticks at each end included. */
+export interface CodeSpan {
+	from: number;
+	to: number;
+	ticks: number;
+}
+
+/** The inline code spans of `text`, outside frontmatter and fenced code blocks (see `codeMask`). */
+export function codeSpans(text: string): CodeSpan[] {
+	return spansOutside(text, blockMask(text));
+}
+
+/** Marks the frontmatter and fenced code block lines of `text`. */
+function blockMask(text: string): Uint8Array {
 	const mask = new Uint8Array(text.length);
 	const lines = text.split('\n');
 	const inCode = codeLines(lines);
@@ -17,6 +36,12 @@ export function codeMask(text: string): Uint8Array {
 		if (inCode[i]) mask.fill(1, from, from + line.length + 1);
 		from += line.length + 1;
 	});
+	return mask;
+}
+
+/** The inline code spans outside the code `mask`. Marks each in `mask` as it is found. */
+function spansOutside(text: string, mask: Uint8Array): CodeSpan[] {
+	const out: CodeSpan[] = [];
 	for (let i = 0; i < text.length; i++) {
 		const c = text[i];
 		if (mask[i]) continue;
@@ -32,10 +57,11 @@ export function codeMask(text: string): Uint8Array {
 			i += ticks - 1;
 			continue;
 		}
+		out.push({ from: i, to: close + ticks, ticks });
 		mask.fill(1, i, close + ticks);
 		i = close + ticks - 1;
 	}
-	return mask;
+	return out;
 }
 
 /** Start of the run of exactly `ticks` backticks that closes a span opened before `from`, or -1. */

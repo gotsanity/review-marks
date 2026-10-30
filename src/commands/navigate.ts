@@ -3,24 +3,13 @@
 // scrolls to the Target and it flashes.
 import { MarkdownView, type Plugin } from 'obsidian';
 import { notify } from '../notice';
-import { adjacentAnnotation, isExcalidraw, normalizeLineEndings, parse } from '../core';
+import { adjacentAnnotation, isExcalidraw, lineOfOffset, lineStarts, normalizeLineEndings, parse } from '../core';
 import { scrollPreviewTo } from '../guards';
 
 type Direction = 'next' | 'previous';
 
 /** The last Annotation reached in each Reading view, so repeated steps don't depend on scroll. */
 const lastInPreview = new WeakMap<MarkdownView, string>();
-
-const lineOf = (text: string, offset: number) => text.slice(0, offset).split('\n').length - 1;
-function offsetOfLine(text: string, line: number): number {
-	let at = 0;
-	for (let i = 0; i < line; i++) {
-		const nl = text.indexOf('\n', at);
-		if (nl < 0) return text.length;
-		at = nl + 1;
-	}
-	return at;
-}
 
 function goInEditor(view: MarkdownView, direction: Direction): boolean {
 	const { editor } = view;
@@ -36,18 +25,19 @@ function goInEditor(view: MarkdownView, direction: Direction): boolean {
 function goInPreview(view: MarkdownView, direction: Direction): boolean {
 	const text = normalizeLineEndings(view.data);
 	const doc = parse(text);
+	const starts = lineStarts(text);
 	const last = doc.annotations.find((a) => a.id === lastInPreview.get(view));
 	let from: number;
 	if (last) from = last.open + 1;
 	else {
 		// From the top of what is on screen: "next" may land on its first line.
-		const top = offsetOfLine(text, Math.floor(view.previewMode.getScroll()));
+		const top = starts[Math.floor(view.previewMode.getScroll())] ?? text.length;
 		from = direction === 'next' ? top - 1 : top;
 	}
 	const target = adjacentAnnotation(doc, from, direction);
 	if (!target) return false;
 	lastInPreview.set(view, target.id);
-	scrollPreviewTo(view.previewMode, lineOf(text, target.open + 1), target.id);
+	scrollPreviewTo(view.previewMode, lineOfOffset(starts, target.open + 1), target.id);
 	return true;
 }
 

@@ -7,6 +7,7 @@ import {
 	excerpt,
 	footnoteListLabels,
 	isReviewLabel,
+	lineOfOffset,
 	lineStarts,
 	normalizeLineEndings,
 	parse,
@@ -34,16 +35,7 @@ function parseCached(text: string): AnnotationDoc {
 const shapes = new Map<string, string>();
 function shapeOf(doc: AnnotationDoc): string {
 	const starts = lineStarts(doc.text);
-	const line = (offset: number) => {
-		let lo = 0;
-		let hi = starts.length - 1;
-		while (lo < hi) {
-			const mid = (lo + hi + 1) >> 1;
-			if ((starts[mid] ?? 0) <= offset) lo = mid;
-			else hi = mid - 1;
-		}
-		return lo;
-	};
+	const line = (offset: number) => lineOfOffset(starts, offset);
 	return doc.annotations.map((a) => `${a.id}:${line(a.open)}-${line(a.close)}:${a.definition?.comment ?? ''}`).join('\n');
 }
 
