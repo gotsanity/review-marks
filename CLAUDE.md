@@ -12,6 +12,67 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## Code layout
+
+One folder or file per module, so features land as new files:
+
+- `src/core/`: the annotation core. Pure, no Obsidian or CodeMirror imports. `parse(text)` returns an `AnnotationDoc`; planners such as `planCreate` return a plan with `Change[]` or a `Refusal`. Every format rule goes here, with tests.
+- `src/apply/`: change application. `ChangeTarget.apply(planner)` has two implementations: `EditorChangeTarget` (one CodeMirror transaction with `isolateHistory`, no scroll) and `FileChangeTarget` (`Vault.process`). For an Obsidian `Editor`, use `changeTargetFor(editor)`: it falls back to `editor.transaction` when there is no CodeMirror view, so no command needs its own fallback. `provisional.ts` holds a new Annotation outside the undo history while its Comment is typed.
+- `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, `focusChangeEffect`, the Live Preview table widget and its classes, scrolling to an annotation, …) with its fallback.
+- `src/selection-mapping/`: `mapSelection(text, slices, range)` maps a DOM Range over rendered blocks (each a `RenderedSlice`: element plus source range) to source offsets, snapped out of links, formatting runs and Annotation syntax.
+- `src/rendered/`: `decorateRendered` highlights Annotations in already-rendered HTML for a source slice (Reading view sections and Live Preview table cells), failing closed when braces don't line up.
+- `src/export/`: PDF export and Copy as HTML (renders with no section info, see `isExportRender` in guards). `cleanExport` in `src/rendered/export.ts` finds each Annotation from its rendered footnote reference, removes the braces and, with "Strip annotations from exports", the Comments too.
+- `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
+- `src/live-preview/`: Live Preview decorations. `src/badge.ts` makes every badge. `src/drag/`: annotate on drag, with `track.ts` the pointer loop shared by the editor and Reading view.
+- `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
+- `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
+- `src/sidebar/`: the annotations sidebar (`ItemView`), built from the core's `outline(doc, noteName)`: `tracked-note.ts` (which note), `outline-list.ts` (drawing), `comment-editing.ts` and `actions.ts`. Edits go to the open editor, else through `Vault.process`. `src/status-bar/`: the "N annotations" count and its setting.
+- `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
+- `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
+
+## Testing
+
+The plugin's floor is Obsidian 1.7.4 (`minAppVersion`). The `obsidian` typings stay pinned at 1.7.2 because no 1.7.4 typings were published, and using newer typings would let APIs above the floor type-check. CI (`.github/workflows/ci.yml`) runs lint, typecheck, build, unit tests and end-to-end tests on every PR.
+
+### Unit tests (Vitest)
+
+- `npm test` runs once; `npm run test:watch` watches.
+- Tests sit next to the code as `src/**/*.test.ts`. Pure modules (the annotation core, selection mapping) are tested here on plain strings or a fake DOM, never with Obsidian imports.
+- Fake-DOM tests start with `// @vitest-environment happy-dom` and import `src/test-support/fake-dom.ts`, which builds blocks and Ranges and installs the Obsidian DOM helpers (`el.doc`, `createSpan`) the code uses.
+
+### End-to-end tests (wdio-obsidian-service)
+
+- `npm run build`, then `npm run test:e2e`. The harness installs the built plugin from the repo root (`manifest.json`, `main.js`, `styles.css`), so rebuild after every source change.
+- By default each spec runs against Obsidian 1.7.4 (`earliest`, the manifest floor) and `latest`. The first run downloads both into `.obsidian-cache/` (git-ignored).
+- Obsidian runs sandboxed, with its own config and a temp copy of the vault. On Windows, `wdio.conf.mts` backs up the `obsidian://` link handler before the run and restores it afterwards.
+
+**Run against one Obsidian version.** Set `OBSIDIAN_VERSIONS` to space-separated `appVersion/installerVersion` pairs:
+
+```sh
+OBSIDIAN_VERSIONS="earliest/earliest" npm run test:e2e   # 1.7.4 only
+OBSIDIAN_VERSIONS="latest/latest" npm run test:e2e
+OBSIDIAN_VERSIONS="1.7.7/latest" npm run test:e2e        # any specific version
+```
+
+In PowerShell, set `$env:OBSIDIAN_VERSIONS = "earliest/earliest"` first. To run one spec, add `-- --spec test/e2e/specs/smoke.e2e.ts`.
+
+**Add an end-to-end spec.** Create `test/e2e/specs/<feature>.e2e.ts`; `wdio.conf.mts` picks up every `*.e2e.ts` there. Import `describe`/`it` from `mocha` and `browser`/`expect` from `@wdio/globals` (globals aren't injected). Follow `test/e2e/specs/smoke.e2e.ts`. Useful helpers:
+
+- `browser.executeObsidian(({ app, obsidian, plugins }) => …)` runs a function inside Obsidian. `plugins.reviewMarks` is this plugin's instance. The function is serialized, so pass values in as extra arguments rather than closing over them.
+- `browser.executeObsidianCommand('review-marks:<command-id>')` runs a command.
+- `obsidianPage.openFile(path)`, `obsidianPage.read(path)` and `obsidianPage.write(path, content)` from `wdio-obsidian-service`.
+- `browser.getObsidianVersion()` returns the version under test, for version-specific expectations.
+
+**Open a fixture vault.** Fixture vaults are folders under `test/e2e/vaults/`, registered in `test/e2e/fixtures.ts` (`VAULTS`, plus note names in `NOTES`). Every session starts in `DEFAULT_VAULT` (`review-samples`). To get a clean copy or switch vaults:
+
+- `await obsidianPage.resetVault()` in a `beforeEach` restores the session's vault files in place. This is fast, and is the default way to undo a test's edits.
+- `await obsidianPage.resetVault(VAULTS.other)` swaps in another vault's files without restarting.
+- `await browser.reloadObsidian({ vault: VAULTS.other })` restarts Obsidian on a fresh copy. It's slow; use it only when you need clean app state or config.
+
+To add a vault, create `test/e2e/vaults/<name>/` with its notes (and an `.obsidian/app.json` if settings matter), then add it to `VAULTS`. Specs work on copies, so the fixtures on disk never change.
+
+`review-samples` holds the prototype's two 12-case notes, `Review sample - end of note.md` and `Review sample - end of section.md` (same 12 annotations, with the definitions at the end of the note or at the end of each Target's section). The cases are listed in `prototypes/storage-format/README.md` on `origin/prototype/storage-format`. Don't edit them: later tickets assert against their exact text. Make a new vault for other content.
+
 ## Commits
 
 Every commit must be a Conventional Commit (`@commitlint/config-conventional`). A husky `commit-msg` hook (installed by `npm install`) and the `commitlint` CI job on PRs both reject anything else.

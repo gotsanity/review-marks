@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest';
+import sample from '../../test/e2e/vaults/review-samples/Review sample - end of section.md?raw';
+import { normalizeLineEndings, parse } from './index';
+
+describe('parse: the 12-case sample note', () => {
+	const text = normalizeLineEndings(sample);
+	const doc = parse(text);
+
+	it('finds every Target with its Comment', () => {
+		const ids = doc.annotations.map((a) => a.id).sort();
+		expect(ids).toEqual(['r1', 'r10', 'r11', 'r12', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9']);
+		expect(doc.annotations.every((a) => a.definition !== null)).toBe(true);
+	});
+
+	it('reads the Target and multi-line Comment of r7', () => {
+		const r7 = doc.annotations.find((a) => a.id === 'r7');
+		expect(text.slice((r7?.open ?? 0) + 1, r7?.close)).toBe('Rhiaah tells him there is a task he needs done');
+		expect(r7?.definition?.comment).toBe('Rewrite as a direct quote.\nShe said it in character; see the transcript.');
+	});
+});
+
+describe('parse', () => {
+	it('finds a Target, its marker and its Comment', () => {
+		const text = 'Kell fails, {his eyes burning}[^r6].\n\n[^r6]: Was it "hatred"?\n';
+		const doc = parse(text);
+		expect(doc.annotations).toEqual([
+			{
+				id: 'r6',
+				open: 12,
+				close: 29,
+				markerEnd: 35,
+				definition: { id: 'r6', from: 38, to: 61, comment: 'Was it "hatred"?' },
+			},
+		]);
+		expect(doc.orphanDefinitions).toEqual([]);
+	});
+});
+
+describe('parse: Comments', () => {
+	it('joins 4-space and tab continuation lines, keeping a blank line between them', () => {
+		const text = 'A {b}[^r1].\n\n[^r1]: First line.\n    Second line.\n\n\tFourth line.\nAfter.\n';
+		const [a] = parse(text).annotations;
+		expect(a?.definition?.comment).toBe('First line.\nSecond line.\n\nFourth line.');
+		expect(a?.definition?.to).toBe(text.indexOf('\nAfter.'));
+	});
+
+	it('keeps links and brackets in a Comment as written', () => {
+		const text = '{x}[^r2]\n\n[^r2]: See [[Note|alias]] (and {this}).';
+		expect(parse(text).annotations[0]?.definition?.comment).toBe('See [[Note|alias]] (and {this}).');
+	});
+
+	it('reports a marker without a definition, and a definition without a marker', () => {
+		const doc = parse('{x}[^r1]\n\n[^r2]: lonely\n');
+		expect(doc.annotations[0]?.definition).toBeNull();
+		expect(doc.orphanDefinitions).toEqual([{ id: 'r2', from: 10, to: 23, comment: 'lonely' }]);
+	});
+
+	it('ignores author footnotes', () => {
+		const doc = parse('Text[^1] and {x}[^r1].\n\n[^1]: Author note.\n[^r1]: Review.\n');
+		expect(doc.annotations.map((a) => a.id)).toEqual(['r1']);
+		expect(doc.annotations[0]?.definition?.comment).toBe('Review.');
+		expect(doc.orphanDefinitions).toEqual([]);
+	});
+});
+
+describe('parse: Targets', () => {
+	it('pairs braces like brackets, so plain {pairs} stay inside a Target', () => {
+		expect(parse('a {b {c} d}[^r1] e').annotations[0]).toMatchObject({ open: 2, close: 10, markerEnd: 16 });
+	});
+
+	it('treats braces without a marker as plain text', () => {
+		expect(parse('a {b} c } d {').annotations).toEqual([]);
+	});
+
+	it('skips escaped braces', () => {
+		expect(parse('a {b \\} c}[^r1]').annotations[0]).toMatchObject({ open: 2, close: 9 });
+	});
+
+	it('finds two Targets in one paragraph and nested Targets, sorted by their {', () => {
+		const text = '{one}[^r4] and {two {three}[^r2]}[^r3]';
+		expect(parse(text).annotations.map((a) => [a.id, a.open])).toEqual([
+			['r4', 0],
+			['r3', 15],
+			['r2', 20],
+		]);
+	});
+
+	it('spans paragraphs: a Target runs from { to }[^rN] across blank lines', () => {
+		expect(parse('a {b\n\nc}[^r1] d').annotations[0]).toMatchObject({ open: 2, close: 7, markerEnd: 13 });
+	});
+
+	it('spans list items, and a heading into a paragraph', () => {
+		expect(parse('- {one\n- two}[^r1]\n').annotations[0]).toMatchObject({ open: 2, close: 12 });
+		expect(parse('## {Head\n\nBody}[^r1]\n').annotations[0]).toMatchObject({ open: 3, close: 14 });
+	});
+
+	it('finds a Target inside a heading', () => {
+		const text = '### Scene 3: {Call of the Void}[^r12] (~00:41)\n';
+		expect(parse(text).annotations[0]).toMatchObject({ id: 'r12', open: 13, close: 30 });
+	});
+
+	it('ignores braces in inline code', () => {
+		expect(parse('Run `f{x` on {it}[^r1].').annotations[0]).toMatchObject({ open: 13, close: 16 });
+		expect(parse('Run ``{it}[^r1]`` here.').annotations).toEqual([]);
+	});
+
+	it('ignores braces in fenced code and frontmatter', () => {
+		expect(parse('```\n{a}[^r1]\n```\n').annotations).toEqual([]);
+		expect(parse('---\ntitle: {a}[^r1]\n---\nBody.\n').annotations).toEqual([]);
+		expect(parse('~~~js\nconst o = {\n~~~\n\n{b}[^r2]\n').annotations[0]).toMatchObject({ id: 'r2', open: 23 });
+	});
+
+	it('spans a code block whose braces are its own', () => {
+		const text = '{Before.\n\n```\n} {\n```\n\nAfter.}[^r1]\n';
+		expect(parse(text).annotations[0]).toMatchObject({ open: 0, close: text.indexOf('}[^r1]') });
+	});
+
+	it('leaves an unmatched { in an earlier paragraph as plain text', () => {
+		expect(parse('a { b\n\nc {d}[^r1]').annotations[0]).toMatchObject({ open: 9, close: 11 });
+	});
+
+	it('allows a Target across a soft line break within a paragraph', () => {
+		expect(parse('a {b\nc}[^r1] d').annotations[0]).toMatchObject({ open: 2, close: 6 });
+	});
+
+	it('does not read a definition line as a Target', () => {
+		const doc = parse('[^r1]: has {braces}[^r9] inside\n');
+		expect(doc.annotations).toEqual([]);
+		expect(doc.orphanDefinitions.map((d) => d.id)).toEqual(['r1']);
+	});
+
+	it('keeps the first use of an ID', () => {
+		const doc = parse('{a}[^r1] {b}[^r1]\n\n[^r1]: first\n[^r1]: second\n');
+		expect(doc.annotations.map((a) => a.open)).toEqual([0]);
+		expect(doc.annotations[0]?.definition?.comment).toBe('first');
+	});
+});
+
+describe('parse: code is not markup', () => {
+	it('does not read a [^rN]: line in fenced code or frontmatter as a definition', () => {
+		const text = '{a}[^r1]\n\n```\n[^r1]: in code\n```\n\n[^r1]: real\n';
+		expect(parse(text).annotations[0]?.definition?.comment).toBe('real');
+		expect(parse('---\nx: 1\n---\n```md\n[^r2]: sample\n```\n').orphanDefinitions).toEqual([]);
+		expect(parse('---\nnote: |\n[^r3]: yaml\n---\nBody.\n').orphanDefinitions).toEqual([]);
+	});
+});
+
+describe('parse: Templater tags', () => {
+	it('ignores braces inside <% %> when pairing Targets', () => {
+		const text = '<%* if (x) { %>\n{start of target\n<%* } %>\nend}[^r1]\n';
+		expect(parse(text).annotations[0]).toMatchObject({ id: 'r1', open: 16, close: 45 });
+	});
+
+	it('ignores Annotation syntax inside a tag', () => {
+		expect(parse('<% "{a}[^r1]" %> and {b}[^r2]').annotations.map((a) => a.id)).toEqual(['r2']);
+	});
+
+	it('reads an unclosed <% as plain text', () => {
+		expect(parse('a <% {b}[^r1]').annotations[0]).toMatchObject({ open: 5 });
+	});
+});
+
+describe('parse: Excalidraw drawings', () => {
+	it('finds nothing in a note with an excalidraw-plugin frontmatter key', () => {
+		const doc = parse('---\ntags: [x]\nexcalidraw-plugin: parsed\n---\n{Hello}[^r1] ^abcdefgh\n\n[^r2]: c\n');
+		expect(doc.annotations).toEqual([]);
+		expect(doc.orphanDefinitions).toEqual([]);
+	});
+
+	it('reads a note that only mentions Excalidraw outside its frontmatter', () => {
+		expect(parse('---\ntitle: x\n---\nexcalidraw-plugin: parsed\n{a}[^r1]').annotations).toHaveLength(1);
+	});
+});

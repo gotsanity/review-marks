@@ -5,5 +5,8 @@ node_modules/
 main.js
 *.map
 
+# Obsidian builds downloaded by the end-to-end harness
+.obsidian-cache/
+
 # Obsidian plugin settings
 data.json

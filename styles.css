@@ -1,1 +1,284 @@
 /* Review Marks styles. */
+
+/* The theme's highlight colour by default: Obsidian 1.14 renamed --text-highlight-bg to
+   --highlight-background. The "Highlight colour" setting overrides the first three on the body
+   (src/highlight.ts). */
+body {
+	--rm-theme-highlight: var(--highlight-background, var(--text-highlight-bg));
+	--rm-highlight: var(--rm-theme-highlight);
+	--rm-highlight-revealed: color-mix(in srgb, var(--rm-theme-highlight) 50%, transparent);
+	--rm-accent: var(--rm-theme-highlight);
+}
+
+/* Measures the theme's highlight colour for the settings tab's colour picker. */
+.rm-theme-probe {
+	position: fixed;
+	visibility: hidden;
+	background-color: var(--rm-theme-highlight);
+}
+
+/* ---------- Live Preview (src/live-preview) ---------- */
+
+.rm-target {
+	background-color: var(--rm-highlight);
+	border-bottom: 2px solid var(--rm-accent);
+	border-radius: 2px;
+}
+
+.rm-target.rm-revealed {
+	background-color: var(--rm-highlight-revealed);
+}
+
+.rm-syntax {
+	color: var(--text-faint);
+}
+
+.rm-badge {
+	display: inline-block;
+	max-width: 24em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-left: 3px;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: var(--font-ui-smaller);
+	font-weight: normal;
+	font-style: normal;
+	line-height: 1.6;
+	vertical-align: 0.15em;
+	color: var(--text-normal);
+	background-color: var(--rm-highlight);
+	border: 1px solid var(--rm-accent);
+	cursor: pointer;
+	white-space: nowrap;
+	user-select: none;
+	text-indent: 0;
+}
+
+/* Syntax hidden inside rendered HTML (Reading view, Live Preview table cells, src/rendered). */
+.rm-hidden {
+	display: none;
+}
+
+/* ---------- Comment popover (src/popover) ---------- */
+
+.rm-popover {
+	position: fixed;
+	top: var(--rm-top, 0);
+	left: var(--rm-left, 0);
+	z-index: var(--layer-popover);
+	max-width: min(420px, calc(100vw - 8px));
+	max-height: 50vh;
+	overflow-y: auto;
+	padding: 6px 10px;
+	border: 1px solid var(--rm-accent);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+}
+
+.rm-popover-head {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 2px;
+}
+
+.rm-popover-body > :first-child {
+	margin-top: 0;
+}
+
+.rm-popover-body > :last-child {
+	margin-bottom: 0;
+}
+
+/* ---------- Inline comment box (src/comment-box) ---------- */
+
+.rm-cbox {
+	position: fixed;
+	top: var(--rm-top, 0);
+	left: var(--rm-left, 0);
+	z-index: var(--layer-popover);
+	width: min(380px, calc(100vw - 8px));
+	padding: 6px 8px;
+	border: 1px solid var(--rm-accent);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+}
+
+.rm-cbox-head {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 4px;
+}
+
+.rm-cbox-input {
+	display: block;
+	width: 100%;
+	height: var(--rm-cbox-input-height, auto);
+	min-height: 2.2em;
+	resize: none;
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
+
+.rm-cbox-foot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.rm-cbox-hint {
+	flex: 1;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.rm-cbox-btn {
+	padding: 2px 10px;
+	height: auto;
+	font-size: var(--font-ui-smaller);
+}
+
+/* ---------- Annotate on drag (src/drag) ---------- */
+
+.rm-drag-sel {
+	background-color: var(--text-selection);
+}
+
+/* The range of a drag in Reading view (CSS Custom Highlight API). */
+::highlight(rm-drag) {
+	background-color: var(--text-selection);
+}
+
+/* ---------- Navigation (src/commands/navigate.ts) ---------- */
+
+.rm-target.rm-flash {
+	animation: rm-flash 1.2s ease-out;
+}
+
+@keyframes rm-flash {
+	0%,
+	40% {
+		background-color: var(--rm-accent);
+	}
+	100% {
+		background-color: var(--rm-highlight);
+	}
+}
+
+/* ---------- Annotations sidebar (src/sidebar) ---------- */
+
+.rm-sb-count {
+	padding: 4px 4px 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.rm-sb-duplicates {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 0 4px 8px;
+	padding: 6px 8px;
+	border-radius: var(--radius-s);
+	background-color: rgba(var(--color-orange-rgb), 0.15);
+	font-size: var(--font-ui-small);
+}
+
+.rm-sb-duplicates.is-hidden {
+	display: none;
+}
+
+.rm-sb-empty {
+	padding: 4px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+}
+
+.rm-sb-group-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 4px;
+	border-radius: var(--radius-s);
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+}
+
+.rm-sb-group-head:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.rm-sb-chevron {
+	display: inline-flex;
+	color: var(--text-faint);
+	transition: transform 100ms ease-in-out;
+}
+
+.rm-sb-chevron svg {
+	width: 14px;
+	height: 14px;
+}
+
+.rm-sb-group.is-collapsed > .rm-sb-group-head .rm-sb-chevron {
+	transform: rotate(-90deg);
+}
+
+.rm-sb-group.is-collapsed > .rm-sb-group-body {
+	display: none;
+}
+
+.rm-sb-group-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.rm-sb-group-count {
+	color: var(--text-faint);
+	font-weight: normal;
+}
+
+.rm-sb-group-body {
+	padding-left: 12px;
+}
+
+.rm-sb-entry {
+	margin: 4px 0 8px;
+	padding-left: 6px;
+	border-left: 2px solid var(--rm-accent);
+}
+
+.rm-sb-entry-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 4px;
+}
+
+.rm-sb-target {
+	flex: 1;
+	padding: 2px 4px;
+	border-radius: var(--radius-s);
+	background-color: var(--rm-highlight);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+	overflow-wrap: anywhere;
+}
+
+.rm-sb-comment {
+	display: block;
+	width: 100%;
+	height: var(--rm-sb-comment-height, auto);
+	min-height: 2.2em;
+	margin-top: 4px;
+	resize: none;
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+}
