@@ -293,7 +293,7 @@ describe("planCreate: other plugins' syntax", () => {
 	it('refuses a Target that starts or ends inside inline or block math', () => {
 		expect(select('Text and $x^2 + y$ here.', 'and $x^2')).toEqual({
 			refusal: 'in-math',
-			message: "a Target can't start or end inside math.",
+			message: "an annotation can't start or end inside math.",
 		});
 		expect(reason('Text and $x^2 + y$ here.', 'y$ here')).toBe('in-math');
 		expect(reason('Before.\n\n$$\na^2\n$$\n\nAfter.', 'Before.\n\n$$\na')).toBe('in-math');
@@ -309,7 +309,7 @@ describe("planCreate: other plugins' syntax", () => {
 	it('refuses a Target that starts or ends inside a Templater or Templates tag', () => {
 		expect(select('Title: <% tp.file.title %> today.', 'file.title %> today')).toEqual({
 			refusal: 'in-template',
-			message: "a Target can't start or end inside a template tag.",
+			message: "an annotation can't start or end inside a template tag.",
 		});
 		expect(reason('Made on {{date:YYYY}} by me.', 'on {{date')).toBe('in-template');
 	});
@@ -323,7 +323,7 @@ describe("planCreate: other plugins' syntax", () => {
 	it('refuses a Target that starts or ends inside a bracketed Dataview field', () => {
 		expect(select('Score [rating:: 5] here.', 'rating')).toEqual({
 			refusal: 'in-dataview-field',
-			message: "a Target can't start or end inside a Dataview field.",
+			message: "an annotation can't start or end inside a Dataview field.",
 		});
 		expect(reason('Score (rating:: 5) here.', '5) here')).toBe('in-dataview-field');
 		expect(reason('A [note:: see [[X]]] b.', 'X]]] b')).toBe('in-dataview-field');
@@ -343,7 +343,7 @@ describe("planCreate: other plugins' syntax", () => {
 	it('refuses a Target that starts or ends inside a link', () => {
 		expect(select('See [[Note|the alias]] now.', 'alias]] now')).toEqual({
 			refusal: 'in-link',
-			message: "a Target can't start or end inside a link.",
+			message: "an annotation can't start or end inside a link.",
 		});
 		expect(reason('See [the site](https://example.com) now.', 'See [the')).toBe('in-link');
 		expect(reason('See ![[image.png]] now.', 'image')).toBe('in-link');
@@ -361,7 +361,7 @@ describe("planCreate: other plugins' syntax", () => {
 	it('refuses a Target that starts or ends inside an HTML tag or comment', () => {
 		expect(select('A <span class="x">word</span> b.', 'class="x">word')).toEqual({
 			refusal: 'in-html',
-			message: "a Target can't start or end inside an HTML tag.",
+			message: "an annotation can't start or end inside an HTML tag.",
 		});
 		expect(reason('A <!-- note --> b.', 'note --> b')).toBe('in-html');
 	});
@@ -409,7 +409,7 @@ describe('planCreate: table cells', () => {
 		const from = TABLE.indexOf('Kell');
 		expect(refusal(TABLE, from, from + 'Kell | 17'.length)).toEqual({
 			refusal: 'crosses-table-cells',
-			message: 'a Target must stay within one table cell.',
+			message: 'an annotation must stay within one table cell.',
 		});
 	});
 

@@ -59,16 +59,16 @@ describe('readingTarget', () => {
 	});
 
 	it('refuses a drag inside a code block', () => {
-		expect(target(3, 'x = 1')).toBe("refused: a Target can't start or end in code.");
+		expect(target(3, 'x = 1')).toBe("refused: an annotation can't start or end in code.");
 	});
 
 	it('refuses a drag that starts or ends inside inline code', () => {
-		expect(target(5, 'run now')).toBe("refused: a Target can't start or end in code.");
+		expect(target(5, 'run now')).toBe("refused: an annotation can't start or end in code.");
 	});
 
 	it('refuses a drag across table cells', () => {
 		// The cells' texts follow each other with no space between them.
-		expect(target(4, 'rethfa')).toBe('refused: a Target must stay within one table cell.');
+		expect(target(4, 'rethfa')).toBe('refused: an annotation must stay within one table cell.');
 	});
 
 	it('maps a drag from a paragraph into a list item across both sections', () => {

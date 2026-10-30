@@ -85,22 +85,22 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 	const onCodeLine = (at: number) => inCode[lineStartOf(text, at)] === 1;
 	const insideSpan = (at: number) => inCode[at - 1] === 1 && inCode[at] === 1;
 	if (onCodeLine(f) || onCodeLine(t - 1) || insideSpan(f) || insideSpan(t)) {
-		return refuse('in-code', "a Target can't start or end in code.");
+		return refuse('in-code', "an annotation can't start or end in code.");
 	}
 	const ranges = syntaxRanges(text);
 	for (const kind of Object.keys(SYNTAX_REFUSALS) as SyntaxKind[]) {
 		if (ranges.some((r) => r.kind === kind && (boundaryInside(r, f) || boundaryInside(r, t)))) {
 			const [reason, what] = SYNTAX_REFUSALS[kind];
-			return refuse(reason, `a Target can't start or end inside ${what}.`);
+			return refuse(reason, `an annotation can't start or end inside ${what}.`);
 		}
 	}
 	if (span.includes('\n')) {
 		for (let at = lineStartOf(text, f); at < t; at = text.indexOf('\n', at) + 1 || t) {
-			if (isTableLine(lineAt(text, at))) return refuse('crosses-blocks', "a Target can't span table rows.");
+			if (isTableLine(lineAt(text, at))) return refuse('crosses-blocks', "an annotation can't span table rows.");
 		}
 	}
 	if (isTableLine(lineAt(text, f)) && cellBorders(span).length > 0) {
-		return refuse('crosses-table-cells', 'a Target must stay within one table cell.');
+		return refuse('crosses-table-cells', 'an annotation must stay within one table cell.');
 	}
 
 	const definitions = [

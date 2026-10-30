@@ -163,7 +163,7 @@ describe('Annotations in Live Preview table cells', () => {
 		});
 		expect(selected).toBe(true);
 		await browser.executeObsidianCommand('review-marks:annotate-selection');
-		await expect(browser.$('.notice*=a Target must stay within one table cell.')).toExist();
+		await expect(browser.$('.notice*=an annotation must stay within one table cell.')).toExist();
 		await expect(browser.$('.rm-cbox')).not.toExist();
 		expect(await noteText()).toBe(before);
 	});
