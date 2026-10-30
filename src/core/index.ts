@@ -1,7 +1,8 @@
 // The annotation core: every format rule, on plain LF text. No Obsidian or editor imports.
 export type { Annotation, AnnotationDoc, Change, Definition, Placement, Refusal, RefusalReason } from './types';
 export { isRefusal } from './types';
-export { parse, normalizeLineEndings } from './parse';
+export { parse, normalizeLineEndings, lineStarts } from './parse';
+export { footnoteListLabels, footnoteOrder, isReviewLabel } from './footnotes';
 export { applyChanges } from './changes';
 export { definitionText, excerpt, normalizeComment } from './definition';
 export { blockPrefixLength, isTableLine } from './sections';

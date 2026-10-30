@@ -21,7 +21,11 @@ One folder or file per module, so features land as new files:
 - `src/guards.ts`: every fragile API (`editor.cm`, `scrollSnapshot`, …) with its fallback.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
 - `src/live-preview/`: Live Preview decorations and the badge.
-- `src/commands/`: one file per command. `src/settings.ts`: settings and defaults. `src/main.ts`: wiring only.
+- `src/rendered/`: decorates rendered HTML against a slice of the source. `align.ts` is pure (tested on plain strings); `decorate.ts` applies it to the DOM and fails closed.
+- `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
+- `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
+- `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
+- `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
 
 ## Testing
 
