@@ -39,7 +39,9 @@ export default defineConfig(
 	},
 	...obsidianmd.configs.recommended,
 	{
+		// The end-to-end specs run in Node (WebdriverIO), not in Obsidian.
 		files: ['test/e2e/**/*.ts'],
+		languageOptions: { globals: { ...globals.node } },
 		rules: {
 			'no-restricted-syntax': [
 				'error',

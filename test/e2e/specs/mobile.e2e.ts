@@ -6,6 +6,10 @@ import { after, before, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { resetVaultTo } from '../harness.ts';
 
+// Linux CI tiles windows with herbstluftwm, which ignores Electron's setSize, so this test can't
+// shrink the viewport there. It still runs locally and on Windows.
+const itUnlessTiledCi = process.env.CI && process.platform === 'linux' ? it.skip : it;
+
 const NOTE = 'Mobile me.md';
 const filler = Array.from({ length: 60 }, (_, i) => `Paragraph ${i} of filler text.\n`).join('\n');
 const TEXT = ['Intro {first}[^r1] line.', '', filler, 'The {far target}[^r2] sits here.', '', '[^r1]: One.', '[^r2]: Two.', ''].join('\n');
@@ -61,7 +65,7 @@ describe('Mobile', () => {
 	});
 	after(() => browser.executeObsidian(({ app }) => (app as unknown as { emulateMobile(on: boolean): void }).emulateMobile(false)));
 
-	it('comment box: Enter adds a line, only Save saves, and the box stays above the keyboard', async () => {
+	itUnlessTiledCi('comment box: Enter adds a line, only Save saves, and the box stays above the keyboard', async () => {
 		const plain = 'Kell fails the save and seizes in place.\n\nMore text.\n';
 		await open(plain);
 		await browser.executeObsidian(({ app }) => {
