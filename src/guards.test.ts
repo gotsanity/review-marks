@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import type { MarkdownPreviewView } from 'obsidian';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { caretFromPoint, isExportRender, scrollPreviewTo, tableWidgetCells } from './guards';
+import { StateEffect } from '@codemirror/state';
+import { caretFromPoint, focusChangeTracking, isExportRender, isTableWidgetChrome, keepsOwnDrag, scrollPreviewTo, tableWidgetAt, tableWidgetCells } from './guards';
 import { block } from './test-support/fake-dom';
 
 const TEXT = 'Intro.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | {17 (fail)}[^r9] |\n';
@@ -158,5 +159,49 @@ describe('scrollPreviewTo', () => {
 		for (let i = 0; i < 30; i++) view.frame();
 		expect(view.centred).toEqual([{ block: 'center' }]);
 		expect(view.target()?.classList.contains('rm-flash')).toBe(true);
+	});
+});
+
+describe('the Live Preview table widget', () => {
+	it('finds the widget an element is in', () => {
+		const w = widget();
+		const td = w.querySelector('td') as HTMLElement;
+		expect(tableWidgetAt(td)).toBe(w.querySelector('.cm-table-widget'));
+		expect(tableWidgetAt(block('<p>x</p>'))).toBeNull();
+	});
+
+	it("tells the widget's drag handles from cell content", () => {
+		const w = widget();
+		expect(isTableWidgetChrome(w.querySelector('.table-row-drag-handle') as Element)).toBe(true);
+		expect(isTableWidgetChrome(w.querySelector('.table-cell-wrapper') as Element)).toBe(false);
+	});
+});
+
+describe('keepsOwnDrag', () => {
+	it('leaves drags on embeds, badges and the comment box alone', () => {
+		const root = block(
+			'<div class="cm-embed-block"><p class="a">x</p></div><div class="markdown-embed"><p class="b">x</p></div>' +
+				'<div class="internal-embed"><p class="c">x</p></div><span class="rm-badge">x</span><div class="rm-cbox"><p class="d">x</p></div><p class="e">x</p>',
+		);
+		for (const cls of ['a', 'b', 'c', 'd']) expect(keepsOwnDrag(root.querySelector(`.${cls}`) as Element)).toBe(true);
+		expect(keepsOwnDrag(root.querySelector('.rm-badge') as Element)).toBe(true);
+		expect(keepsOwnDrag(root.querySelector('.e') as Element)).toBe(false);
+	});
+
+	it('takes drags in a Live Preview table, which is drawn as an embed block', () => {
+		const w = widget();
+		expect(keepsOwnDrag(w.querySelector('.table-cell-wrapper') as Element)).toBe(false);
+	});
+});
+
+describe('focusChangeTracking', () => {
+	const effect = StateEffect.define<boolean>();
+
+	it('maps focus changes to the effect where CodeMirror has focusChangeEffect', () => {
+		expect(focusChangeTracking((focusing) => effect.of(focusing))).not.toEqual([]);
+	});
+
+	it('is no extension, rather than an error, where it is missing', () => {
+		expect(focusChangeTracking((focusing) => effect.of(focusing), {})).toEqual([]);
 	});
 });

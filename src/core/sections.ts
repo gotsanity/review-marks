@@ -25,18 +25,23 @@ export function isHeadingLine(line: string): boolean {
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
-/**
- * For each line, whether it is frontmatter or inside a fenced code block (fences included), where
- * a `#` line is not a heading and a `[^rN]:` line is not a definition. An unclosed fence runs to
- * the end of the note.
- */
-export function codeLines(lines: readonly string[]): boolean[] {
-	const out = lines.map(() => false);
+/** Frontmatter or a fenced code block, by 0-based line, delimiter lines included. */
+export interface CodeBlock {
+	kind: 'frontmatter' | 'fence';
+	first: number;
+	last: number;
+	/** False for a fence left open: it runs to the end of the note. */
+	closed: boolean;
+}
+
+/** The frontmatter and fenced code blocks of a note's lines, in order. */
+export function codeBlocks(lines: readonly string[]): CodeBlock[] {
+	const out: CodeBlock[] = [];
 	let i = 0;
 	if (lines[0] === '---') {
 		const close = lines.findIndex((l, j) => j > 0 && (l === '---' || l === '...'));
 		if (close > 0) {
-			out.fill(true, 0, close + 1);
+			out.push({ kind: 'frontmatter', first: 0, last: close, closed: true });
 			i = close + 1;
 		}
 	}
@@ -50,8 +55,19 @@ export function codeLines(lines: readonly string[]): boolean[] {
 			if (close && close[1]![0] === fence[0] && close[1]!.length >= fence.length && lines[j]!.trim() === close[0].trim()) break;
 			j++;
 		}
-		out.fill(true, i, Math.min(j, lines.length - 1) + 1);
+		out.push({ kind: 'fence', first: i, last: Math.min(j, lines.length - 1), closed: j < lines.length });
 		i = j;
 	}
+	return out;
+}
+
+/**
+ * For each line, whether it is frontmatter or inside a fenced code block (fences included), where
+ * a `#` line is not a heading and a `[^rN]:` line is not a definition. An unclosed fence runs to
+ * the end of the note.
+ */
+export function codeLines(lines: readonly string[]): boolean[] {
+	const out = lines.map(() => false);
+	for (const b of codeBlocks(lines)) out.fill(true, b.first, b.last + 1);
 	return out;
 }

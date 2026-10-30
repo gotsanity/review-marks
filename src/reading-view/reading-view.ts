@@ -4,16 +4,16 @@
 import { MarkdownView, TFile, type App, type MarkdownPostProcessorContext, type Plugin } from 'obsidian';
 import type { RenderedSection } from '../drag/reading-target';
 import {
-	excerpt,
 	footnoteListLabels,
 	isReviewLabel,
+	lineOfOffset,
 	lineStarts,
 	normalizeLineEndings,
 	parse,
 	type Annotation,
 	type AnnotationDoc,
 } from '../core';
-import { badgeText } from '../live-preview/badge';
+import { badgeLabel, createBadge } from '../badge';
 import type { CommentPopover } from '../popover/popover';
 import { decorateRendered } from '../rendered/decorate';
 import type { ReviewMarksSettings } from '../settings';
@@ -34,16 +34,7 @@ function parseCached(text: string): AnnotationDoc {
 const shapes = new Map<string, string>();
 function shapeOf(doc: AnnotationDoc): string {
 	const starts = lineStarts(doc.text);
-	const line = (offset: number) => {
-		let lo = 0;
-		let hi = starts.length - 1;
-		while (lo < hi) {
-			const mid = (lo + hi + 1) >> 1;
-			if ((starts[mid] ?? 0) <= offset) lo = mid;
-			else hi = mid - 1;
-		}
-		return lo;
-	};
+	const line = (offset: number) => lineOfOffset(starts, offset);
 	return doc.annotations.map((a) => `${a.id}:${line(a.open)}-${line(a.close)}:${a.definition?.comment ?? ''}`).join('\n');
 }
 
@@ -100,14 +91,7 @@ function decorateSection(
 	const from = starts[lineStart] ?? doc.text.length;
 	const next = starts[lineEnd + 1];
 	const to = next === undefined ? doc.text.length : next - 1;
-	const badge = (a: Annotation) =>
-		settings.showBadge
-			? createSpan({
-					cls: 'rm-badge',
-					text: badgeText(a.id, a.definition?.comment ?? null, false, (c) => excerpt(c, settings.excerptLength)),
-					attr: { 'data-rm-id': a.id },
-				})
-			: null;
+	const badge = (a: Annotation) => (settings.showBadge ? createBadge(a.id, badgeLabel(a, settings.excerptLength, false)) : null);
 	const decorated = decorateRendered(el, doc.text, { from, to }, doc.annotations, badge);
 	// After decorating: `decorateRendered` first clears any `rm-hidden` it finds in the section.
 	decorateFootnoteList(el, doc.text, settings.hideReviewFootnotes);

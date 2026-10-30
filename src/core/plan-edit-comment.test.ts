@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChanges } from './changes';
-import { parse } from './parse';
-import { planEditComment } from './plan-edit-comment';
-import { isRefusal } from './types';
+import { applyChanges, isRefusal, parse, planEditComment } from './index';
 
 function edit(text: string, id: string, comment: string): string {
 	const plan = planEditComment(parse(text), { id, comment, placement: 'end-of-section' });

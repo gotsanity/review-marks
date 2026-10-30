@@ -1,15 +1,19 @@
-// The "Highlight colour" setting. styles.css draws Targets with the theme's highlight colour;
-// a chosen colour overrides its CSS variables on the body of every Obsidian window.
+// The "Highlight colour" setting and its wiring (Obsidian side; the colour maths is pure, in
+// css-props.ts). styles.css draws Targets with the theme's highlight colour; a chosen colour
+// overrides its CSS variables on the body of every Obsidian window.
 import { Setting, type ColorComponent, type Plugin } from 'obsidian';
-import type { SettingsSection } from './settings-tab/settings-tab';
-import type { ReviewMarksSettings } from './settings';
-import { hexOf, highlightProps } from './highlight-colour';
+import type { SettingsSection } from '../settings-tab/settings-tab';
+import type { SettingsStore } from '../settings';
+import { hexOf, highlightProps } from './css-props';
 
-/** Applies the setting to every window now and to popout windows as they open; clears it on unload. */
-export function registerHighlightColour(plugin: Plugin, settings: () => ReviewMarksSettings): () => void {
+/**
+ * Applies the setting to every window now, to popout windows as they open and again whenever it
+ * changes; clears it on unload.
+ */
+export function registerHighlightColour(plugin: Plugin, store: SettingsStore): void {
 	const bodies = new Set<HTMLElement>([document.body]);
 	const apply = () => {
-		const props = highlightProps(settings().highlightColour);
+		const props = highlightProps(store.current.highlightColour);
 		for (const body of bodies) body.setCssProps(props);
 	};
 	plugin.registerEvent(
@@ -23,8 +27,8 @@ export function registerHighlightColour(plugin: Plugin, settings: () => ReviewMa
 		const clear = highlightProps('');
 		for (const body of bodies) body.setCssProps(clear);
 	});
+	plugin.register(store.onChange(apply));
 	apply();
-	return apply;
 }
 
 /**

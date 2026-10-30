@@ -13,16 +13,16 @@ import { closeActiveCommentBox } from './comment-box/comment-box';
 import { editorDrag } from './drag/editor-drag';
 import { registerReadingDrag } from './drag/reading-drag';
 import { exportSettings, registerExport } from './export/export';
-import { addDragTriggerSetting } from './drag/setting';
-import { highlightSettings, registerHighlightColour } from './highlight';
+import { dragSettings } from './drag/setting';
+import { highlightSettings, registerHighlightColour } from './highlight/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
 import { livePreviewPopover } from './live-preview/popover';
 import { tableCellDecorations } from './live-preview/table-cells';
-import { addPlacementSetting } from './placement-setting';
 import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
 import { displaySettings } from './settings-tab/display';
+import { placementSettings } from './settings-tab/placement';
 import { ReviewMarksSettingTab, SECTION_ORDER } from './settings-tab/settings-tab';
 import { DEFAULT_SETTINGS, SettingsStore, settingsFrom, type ReviewMarksSettings } from './settings';
 
@@ -63,16 +63,11 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerStatusBar(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.statusBar, statusBarSettings);
 
-		this.settingsTab.addSection(SECTION_ORDER.placement, (el, store) => {
-			addPlacementSetting(el, store.current.placement, (placement) => store.update({ placement }));
-		});
+		this.settingsTab.addSection(SECTION_ORDER.placement, placementSettings);
 		this.settingsTab.addSection(SECTION_ORDER.display, displaySettings);
-		this.settingsTab.addSection(SECTION_ORDER.drag, (el, store) => {
-			addDragTriggerSetting(el, store.current.dragTrigger, (dragTrigger) => store.update({ dragTrigger }));
-		});
-		const applyHighlight = registerHighlightColour(this, settings);
+		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings);
+		registerHighlightColour(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
-		this.register(this.store.onChange(applyHighlight));
 		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
 		this.register(
 			this.store.onChange(() => {

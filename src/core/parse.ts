@@ -17,6 +17,18 @@ export function lineStarts(text: string): number[] {
 	return out;
 }
 
+/** The 0-based line that `offset` is on, given the note's `lineStarts`. */
+export function lineOfOffset(starts: readonly number[], offset: number): number {
+	let lo = 0;
+	let hi = starts.length - 1;
+	while (lo < hi) {
+		const mid = (lo + hi + 1) >> 1;
+		if ((starts[mid] ?? 0) <= offset) lo = mid;
+		else hi = mid - 1;
+	}
+	return lo;
+}
+
 /** Every review definition (`[^rN]: …` plus continuation lines) outside code, in file order. */
 function parseDefinitions(text: string, inCode: Uint8Array): Definition[] {
 	const lines = text.split('\n');

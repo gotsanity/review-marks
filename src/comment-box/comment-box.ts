@@ -1,7 +1,8 @@
 // The inline comment box: a small floating textarea anchored under a Target. It knows nothing
 // about notes: callers decide what saving and cancelling do.
 // Desktop: Enter saves, Shift+Enter adds a line. Mobile: Enter adds a line, only Save saves.
-// Esc and Cancel cancel. Clicking away saves if there is text and cancels if not.
+// Esc and Cancel cancel. Clicking away saves if there is text and cancels if not; for an emptied
+// existing Comment it also says, as Enter does, that a Comment cannot be empty.
 import { Platform } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 
@@ -119,10 +120,13 @@ export class CommentBox {
 
 	close(how: Close): void {
 		if (this.closed) return;
-		if (how === 'save' && this.options.onEmptySave && this.input.value.trim() === '') {
+		const empty = this.input.value.trim() === '';
+		if (how === 'save' && this.options.onEmptySave && empty) {
 			this.options.onEmptySave();
 			return;
 		}
+		// Clicked away from an emptied existing Comment: the box closes, but says why nothing was saved.
+		if (how === 'away' && this.options.onEmptySave && empty && this.options.initial.trim() !== '') this.options.onEmptySave();
 		this.closed = true;
 		if (active === this) active = null;
 		for (const f of this.cleanup) f();

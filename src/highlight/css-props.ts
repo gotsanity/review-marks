@@ -1,4 +1,4 @@
-// The highlight colour as CSS variables. Pure: no Obsidian imports.
+// The highlight colour as CSS variables. Pure: no Obsidian imports, unit tested. The setting and its wiring are in setting.ts.
 
 const PROPS = ['--rm-highlight', '--rm-highlight-revealed', '--rm-accent'] as const;
 

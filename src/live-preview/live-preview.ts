@@ -2,13 +2,14 @@
 // Annotation, and a badge shows the start of the Comment. A StateField rather than a ViewPlugin,
 // because a Target's syntax can sit outside the visible ranges and decorations must not lag.
 import { MarkdownView, editorLivePreviewField, type App } from 'obsidian';
-import { editorViewOf } from '../guards';
+import { editorViewOf, focusChangeTracking } from '../guards';
 import { Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { blockPrefixLength, excerpt, isTableLine, parse, type Annotation } from '../core';
+import { blockPrefixLength, isTableLine, parse, type Annotation } from '../core';
 import { provisionalField, provisionalId } from '../apply/provisional';
 import type { ReviewMarksSettings } from '../settings';
-import { BadgeWidget, badgeText } from './badge';
+import { badgeLabel } from '../badge';
+import { BadgeWidget } from './badge';
 import { cellEditorTracking, inTableCell, setCellEditor } from './cell-editor';
 
 /** Parsed Annotations of the editor's note, kept current on every edit. */
@@ -32,7 +33,7 @@ const focusField = StateField.define<boolean>({
 });
 const focusTracking: Extension = [
 	focusField,
-	EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing)),
+	focusChangeTracking((focusing) => setFocus.of(focusing)),
 	// An editor focused before the plugin loaded gets no focus event, and CodeMirror drops its focus
 	// transaction when another lands first. So compare the field with the real focus after updates.
 	ViewPlugin.define((view) => {
@@ -91,7 +92,7 @@ function buildDecorations(state: EditorState, settings: () => ReviewMarksSetting
 		} else if (!settings().showBadge) {
 			out.push(hidden.range(a.open, a.open + 1), hidden.range(a.close, a.markerEnd));
 		} else {
-			const text = badgeText(a.id, a.definition?.comment ?? null, typing === a.id, (c) => excerpt(c, excerptLength));
+			const text = badgeLabel(a, excerptLength, typing === a.id);
 			out.push(
 				hidden.range(a.open, a.open + 1),
 				Decoration.replace({ widget: new BadgeWidget(a.id, text) }).range(a.close, a.markerEnd),

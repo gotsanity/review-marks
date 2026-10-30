@@ -7,9 +7,10 @@
 // HTML is left as it is (fail closed), so the reader sees the raw syntax rather than a wrong
 // highlight.
 import { codeMask, type Annotation } from '../core';
+import { isTableWidgetChrome } from '../guards';
 
-/** Rendered content that isn't part of the slice's text. */
-const SKIP = '.rm-badge, .cm-editor, .table-row-drag-handle, .table-col-drag-handle, .math, .internal-embed, .footnotes';
+/** Rendered content that isn't part of the slice's text (with a Live Preview table's own controls). */
+const SKIP = '.rm-badge, .cm-editor, .math, .internal-embed, .footnotes';
 /** Rendered content whose braces aren't markup. */
 const LITERAL = 'code, pre';
 
@@ -37,6 +38,7 @@ export function textNodes(root: HTMLElement): { nodes: Text[]; braces: (Spot & {
 		const parent = t.parentElement;
 		const skipped = parent?.closest(SKIP);
 		if (skipped && skipped !== root && root.contains(skipped)) continue;
+		if (parent && root.contains(parent) && isTableWidgetChrome(parent)) continue;
 		const literal = parent?.closest(LITERAL);
 		if (!(literal && root.contains(literal))) {
 			for (let i = 0; i < t.data.length; i++) {

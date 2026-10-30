@@ -215,3 +215,90 @@ describe('Annotate on drag in a long note', () => {
 		expect(await editorText()).toContain('{middle target}[^r1]');
 	});
 });
+
+describe('Annotate on drag in a Live Preview table', () => {
+	const TABLE = '# Table\n\nIntro line.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | failed the save |\n\nAfter.\n';
+
+	/** Screen points just inside the first character of `first` and the last of `last`, in the table widget. */
+	const cellPoints = async (first: string, last: string) => {
+		const points = await browser.executeObsidian(
+			({ app, obsidian }, first, last) => {
+				const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+				const root = view?.contentEl.querySelector('.cm-table-widget');
+				if (!root) return null;
+				const rectOf = (needle: string, atEnd: boolean) => {
+					const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+					for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+						const i = (n as Text).data.indexOf(needle);
+						if (i < 0) continue;
+						const r = document.createRange();
+						const at = atEnd ? i + needle.length - 1 : i;
+						r.setStart(n, at);
+						r.setEnd(n, at + 1);
+						return r.getBoundingClientRect();
+					}
+					return null;
+				};
+				const a = rectOf(first, false);
+				const b = rectOf(last, true);
+				if (!a || !b) return null;
+				return {
+					start: { x: Math.round(a.left + 1), y: Math.round((a.top + a.bottom) / 2) },
+					end: { x: Math.round(b.right - 1), y: Math.round((b.top + b.bottom) / 2) },
+				};
+			},
+			first,
+			last,
+		);
+		if (!points) throw new Error(`"${first}" or "${last}" is not in the table`);
+		return points;
+	};
+
+	const cellEditorOpen = () =>
+		browser.executeObsidian(({ app, obsidian }) => {
+			const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+			return view?.contentEl.querySelector('.cm-table-widget .cm-editor') != null;
+		});
+
+	beforeEach(async () => {
+		await open(TABLE, 'Intro');
+		await browser.waitUntil(async () => (await cellPoints('failed', 'save').catch(() => null)) !== null, {
+			timeoutMsg: 'no table widget',
+		});
+	});
+
+	it('creates the Annotation inside the cell and opens the comment box, without opening a cell editor', async () => {
+		const { start, end } = await cellPoints('failed', 'save');
+		await drag(Key.Alt, start, end);
+
+		const input = $('.rm-cbox-input');
+		await expect(input).toBeFocused();
+		expect(await cellEditorOpen()).toBe(false);
+		expect(await editorText()).toContain('| Doreth Kell | {failed the save}[^r1] |');
+
+		await input.setValue('In a cell.');
+		await browser.keys('Enter');
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toContain('[^r1]: In a cell.');
+		await undo();
+		expect(await editorText()).toBe(TABLE);
+	});
+
+	it('leaves no trace when cancelled', async () => {
+		const { start, end } = await cellPoints('failed', 'save');
+		await drag(Key.Alt, start, end);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		await browser.keys('Escape');
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(TABLE);
+	});
+
+	it('refuses a drag across cells with a notice', async () => {
+		const { start, end } = await cellPoints('Kell', 'failed');
+		await drag(Key.Alt, start, end);
+		await expect($('.notice*=an annotation must stay within one table cell.')).toExist();
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await cellEditorOpen()).toBe(false);
+		expect(await editorText()).toBe(TABLE);
+	});
+});

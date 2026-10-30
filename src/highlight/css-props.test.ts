@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { highlightProps, hexOf } from './highlight-colour';
+import { highlightProps, hexOf } from './css-props';
 
 describe('hexOf', () => {
 	it('reads the colour picker value from a computed theme colour, dropping its alpha', () => {
