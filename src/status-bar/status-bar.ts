@@ -48,7 +48,7 @@ export function registerStatusBar(plugin: Plugin, store: SettingsStore): void {
 export const statusBarSettings: SettingsSection = (containerEl, store) => {
 	if (Platform.isMobile) return;
 	new Setting(containerEl)
-		.setName('Show annotation count in the status bar')
+		.setName('Show annotation count in status bar')
 		.setDesc('The number of annotations in the active note. Click it to open the annotations sidebar.')
 		.addToggle((toggle) =>
 			toggle.setValue(store.current.showStatusBar).onChange((value) => store.update({ showStatusBar: value })),
