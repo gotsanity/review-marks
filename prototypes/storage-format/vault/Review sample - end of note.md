@@ -418,18 +418,18 @@ End of session.
 - **Jill's cousin.** She says her cousin and his boy went for help. I took them to be the survivors' leader ("Pa") and the boy from Session 23. Confirm.
 - **The god of war's giant name.** Session 15 audio has something like "Herr Kung Unger." I wrote "a giant name that translates to war king." Give me the spelling if you want it named.
 
+<!-- PROTOTYPE NOTE: r9 targets the first of two "17 (fail)" cells in the Roll Log (Doreth Kell, Wisdom save). The second one (Constitution save) is not annotated. -->
+
 [^r1]: Too terse. Say why Malek had to: she punched Rhiaah.
-[^r2]: Move the roll result to the Roll Log; keep prose clean.
 [^r3]: Label should match the scene title.
+[^r2]: Move the roll result to the Roll Log; keep prose clean.
 [^r4]: Keep this, good image.
 [^r5]: Cut. Already in the Roll Log.
 [^r6]: Check the recording (~00:04): was it "hatred" or "contempt"? Don't add {flavour} or [[links]] here.
 [^r7]: Rewrite as a direct quote.
     She said it in character; see the transcript.
+[^r12]: Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.
 [^r8]: Use "Vance" consistently; drop "the Peddler".
-[^r9]: Was this a fail? DC was 18 per the transcript.
 [^r10]: Which potion? Greater healing?
 [^r11]: Merge these two threads; it's the same ghost iron.
-[^r12]: Rename this scene. It collides with the world-fact label above, and readers skimming the table of contents will think they're the same section. Something like "The Grey Mist" works, or name it after Kell.
-
-<!-- PROTOTYPE NOTE: r9 targets the first of two "17 (fail)" cells in the Roll Log (Doreth Kell, Wisdom save). The second one (Constitution save) is not annotated. -->
+[^r9]: Was this a fail? DC was 18 per the transcript.

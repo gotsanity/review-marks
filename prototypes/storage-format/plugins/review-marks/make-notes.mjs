@@ -45,8 +45,11 @@ wrap('Call of the Void', 'Rename this scene. It collides with the world-fact lab
 
 const r9Note = '<!-- PROTOTYPE NOTE: r9 targets the first of two "17 (fail)" cells in the Roll Log (Doreth Kell, Wisdom save). The second one (Constitution save) is not annotated. -->\n';
 
-// End of note: definitions in id order after the content.
-const endOfNote = t + '\n' + defs.map((d) => d.text).join('\n') + '\n\n' + r9Note;
+// Definitions follow the reading order of their markers, not id order.
+defs.sort((a, b) => t.indexOf(`}[^${a.id}]`) - t.indexOf(`}[^${b.id}]`));
+
+// End of note: definitions at the literal end of the file, after everything else.
+const endOfNote = t + '\n' + r9Note + '\n' + defs.map((d) => d.text).join('\n') + '\n';
 
 // End of section: each definition before the next heading after its marker.
 const heads = [];
@@ -65,7 +68,6 @@ for (const at of [...byPos.keys()].sort((a, b) => b - a)) {
   endOfSection = endOfSection.slice(0, ce) + '\n\n' + byPos.get(at).join('\n') + endOfSection.slice(ce);
 }
 endOfSection = endOfSection.replace(/\n*$/, '\n') + '\n' + r9Note;
-
 fs.writeFileSync(new URL('../../vault/Review sample - end of note.md', import.meta.url), endOfNote);
 fs.writeFileSync(new URL('../../vault/Review sample - end of section.md', import.meta.url), endOfSection);
 console.log('wrote 2 notes,', defs.length, 'annotations');

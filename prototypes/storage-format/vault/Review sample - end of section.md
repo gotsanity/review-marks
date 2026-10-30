@@ -27,8 +27,8 @@
 
 ---
 
-[^r2]: Move the roll result to the Roll Log; keep prose clean.
 [^r3]: Label should match the scene title.
+[^r2]: Move the roll result to the Roll Log; keep prose clean.
 
 ## 2. Characters (PCs)
 
