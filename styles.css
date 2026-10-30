@@ -162,6 +162,22 @@ body {
 	font-size: var(--font-ui-small);
 }
 
+.rm-sb-duplicates {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 0 4px 8px;
+	padding: 6px 8px;
+	border-radius: var(--radius-s);
+	background-color: rgba(var(--color-orange-rgb), 0.15);
+	font-size: var(--font-ui-small);
+}
+
+.rm-sb-duplicates.is-hidden {
+	display: none;
+}
+
 .rm-sb-empty {
 	padding: 4px;
 	color: var(--text-faint);

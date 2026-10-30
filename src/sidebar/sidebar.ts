@@ -7,7 +7,10 @@ import { EditorChangeTarget } from '../apply/editor-target';
 import { FileChangeTarget } from '../apply/file-target';
 import type { ChangeTarget } from '../apply/change-target';
 import {
+	duplicateIds,
+	isExcalidraw,
 	isRefusal,
+	planFixIds,
 	normalizeComment,
 	normalizeLineEndings,
 	outline,
@@ -52,6 +55,7 @@ export class AnnotationsView extends ItemView {
 	private signature = '';
 	private readonly collapsed = new Set<string>();
 	private countEl!: HTMLElement;
+	private duplicatesEl!: HTMLElement;
 	private listEl!: HTMLElement;
 
 	constructor(
@@ -85,6 +89,7 @@ export class AnnotationsView extends ItemView {
 		this.contentEl.empty();
 		this.contentEl.addClass('rm-sidebar');
 		this.countEl = this.contentEl.createDiv({ cls: 'rm-sb-count' });
+		this.duplicatesEl = this.contentEl.createDiv({ cls: 'rm-sb-duplicates' });
 		this.listEl = this.contentEl.createDiv({ cls: 'rm-sb-list' });
 		const ws = this.app.workspace;
 		this.registerEvent(ws.on('active-leaf-change', (leaf) => this.follow(leaf)));
@@ -158,6 +163,7 @@ export class AnnotationsView extends ItemView {
 		const file = this.file;
 		if (!file) {
 			this.signature = '';
+			this.showDuplicates([]);
 			this.countEl.setText('');
 			this.listEl.empty();
 			this.listEl.createDiv({ cls: 'rm-sb-empty', text: 'Open a note to see its annotations.' });
@@ -165,12 +171,15 @@ export class AnnotationsView extends ItemView {
 		}
 		const text = await this.readText(file);
 		if (file !== this.file) return;
-		const o = outline(parse(text), file.basename);
+		const doc = parse(text);
+		const o = outline(doc, file.basename);
 		this.countEl.setText(countLabel(o.count));
+		this.showDuplicates(duplicateIds(doc));
 		if (o.groups.length === 0 && o.untargeted.length === 0) {
 			this.signature = '';
 			this.listEl.empty();
-			this.listEl.createDiv({ cls: 'rm-sb-empty', text: 'No annotations in this note.' });
+			const empty = isExcalidraw(text) ? 'Annotations are off in Excalidraw drawings.' : 'No annotations in this note.';
+			this.listEl.createDiv({ cls: 'rm-sb-empty', text: empty });
 			return;
 		}
 		const groups = o.untargeted.length
@@ -192,6 +201,32 @@ export class AnnotationsView extends ItemView {
 			this.signature = signature;
 			this.rebuild(groups, samePath);
 		}
+	}
+
+	/** Flags IDs used twice, which hide all but their first Annotation, with a "Fix IDs" button. */
+	private showDuplicates(ids: readonly string[]): void {
+		const key = ids.join(',');
+		if (this.duplicatesEl.dataset.ids === key) return;
+		this.duplicatesEl.dataset.ids = key;
+		this.duplicatesEl.empty();
+		this.duplicatesEl.toggleClass('is-hidden', ids.length === 0);
+		if (ids.length === 0) return;
+		const labels = ids.map((id) => `[^${id}]`).join(', ');
+		this.duplicatesEl.createDiv({
+			cls: 'rm-sb-duplicates-text',
+			text: `${ids.length === 1 ? 'This ID is' : 'These IDs are'} used more than once: ${labels}. Only the first use shows.`,
+		});
+		const button = this.duplicatesEl.createEl('button', { cls: 'mod-warning', text: 'Fix IDs' });
+		button.addEventListener('click', () => void this.fixIds());
+	}
+
+	/** Gives each later use of a duplicate ID a new one, as one undo step. */
+	private async fixIds(): Promise<void> {
+		const file = this.file;
+		if (!file) return;
+		const plan = await this.changeTarget(file).apply(planFixIds);
+		if (isRefusal(plan)) notify(plan.message);
+		await this.refresh();
 	}
 
 	private textareas(): HTMLTextAreaElement[] {

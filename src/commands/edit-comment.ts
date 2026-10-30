@@ -7,6 +7,7 @@ import { EditorChangeTarget } from '../apply/editor-target';
 import { openCommentBox } from '../comment-box/comment-box';
 import { editorViewOf, keepScroll } from '../guards';
 import { annotationIdAtCursor } from './remove-annotation';
+import { whenAnnotatable } from './annotatable';
 import type { ReviewMarksSettings } from '../settings';
 
 const EMPTY_MESSAGE = 'a comment cannot be empty. To delete it, use Remove annotation.';
@@ -42,10 +43,10 @@ export function registerEditComment(plugin: Plugin, settings: () => ReviewMarksS
 	plugin.addCommand({
 		id: 'edit-comment-at-cursor',
 		name: 'Edit comment at cursor',
-		editorCallback: (editor) => {
+		editorCheckCallback: whenAnnotatable((editor) => {
 			const id = annotationIdAtCursor(editor);
 			if (id) editComment(editor, id, settings());
 			else notify('there is no annotation at the cursor.');
-		},
+		}),
 	});
 }
