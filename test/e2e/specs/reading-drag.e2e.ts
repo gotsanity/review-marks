@@ -26,12 +26,6 @@ type Point = { x: number; y: number };
 
 /** Opens the note in Reading view, with the drag trigger set to Alt. */
 async function openInReading(): Promise<void> {
-	// Cancel any comment box and close the note first, so the last test can't write it back.
-	if (await $('.rm-cbox').isExisting()) {
-		await browser.keys('Escape');
-		await $('.rm-cbox').waitForExist({ reverse: true });
-	}
-	await browser.executeObsidian(({ app }) => app.workspace.detachLeavesOfType('markdown'));
 	await obsidianPage.resetVault({ [NOTE]: TEXT });
 	await obsidianPage.openFile(NOTE);
 	await browser.executeObsidian(async ({ app, obsidian }) => {
@@ -124,11 +118,22 @@ const clearNotices = () => browser.executeObsidian(() => document.querySelectorA
 
 describe('Annotate on drag in Reading view', () => {
 	beforeEach(async () => {
-		// Move the pointer off any Target, so no popover from the last test covers the note.
-		await browser.action('pointer').move({ x: 1, y: 1 }).perform();
-		await $('.rm-popover').waitForExist({ reverse: true });
 		await clearNotices();
 		await openInReading();
+	});
+
+	// Before the harness closes the note: a comment box or a popover (the pointer ends on the new
+	// Target) left open would outlive it and cover the next test's note.
+	afterEach(async () => {
+		if (await $('.rm-cbox').isExisting()) {
+			await browser.keys('Escape');
+			await $('.rm-cbox').waitForExist({ reverse: true });
+		}
+		// A popover whose Target went away under the pointer (cancelled) only closes once the
+		// pointer leaves the popover itself.
+		if (await $('.rm-popover').isExisting()) await $('.rm-popover').moveTo();
+		await browser.action('pointer').move({ x: 1, y: 1 }).perform();
+		await $('.rm-popover').waitForExist({ reverse: true });
 	});
 
 	it('maps a drag across bold text, switches to Live Preview at the same height and opens the comment box', async () => {
