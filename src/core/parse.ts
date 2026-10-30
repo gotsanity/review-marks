@@ -1,4 +1,5 @@
 import type { Annotation, AnnotationDoc, Definition } from './types';
+import { codeMask } from './code';
 
 const DEFINITION_LINE = /^\[\^(r\d+)\]:[ \t]?(.*)$/;
 const CONTINUATION = /^( {4}|\t)/;
@@ -46,9 +47,8 @@ function parseDefinitions(text: string): Definition[] {
 /**
  * Parses every Annotation in LF note text.
  *
- * A Target is `{` … `}[^rN]` within one block: braces pair like brackets, so plain `{pairs}`
- * inside a Target stay balanced, and a blank line drops any `{` still open. Braces without a
- * marker are plain text, `\{` and `\}` are escaped, and definitions are never scanned for Targets.
+ * A Target is `{` … `}[^rN]`, across blocks if need be: braces pair like brackets, so plain
+ * `{pairs}` inside a Target stay balanced. Braces without a marker are plain text, `\{` and `\}` are escaped, and definitions and code are never scanned for Targets.
  * When an ID is used twice, the first marker and the first definition win.
  */
 export function parse(text: string): AnnotationDoc {
@@ -58,18 +58,16 @@ export function parse(text: string): AnnotationDoc {
 
 	const inDefinition = new Uint8Array(text.length);
 	for (const d of definitions) inDefinition.fill(1, d.from, d.to);
+	const inCode = codeMask(text);
 
 	const annotations: Annotation[] = [];
 	const seen = new Set<string>();
-	let stack: number[] = [];
+	const stack: number[] = [];
 	for (let i = 0; i < text.length; i++) {
-		if (inDefinition[i]) continue;
+		if (inDefinition[i] || inCode[i]) continue;
 		const c = text[i];
 		if (c === '\\') {
 			i++;
-		} else if (c === '\n') {
-			const next = text.indexOf('\n', i + 1);
-			if (text.slice(i + 1, next < 0 ? text.length : next).trim() === '') stack = [];
 		} else if (c === '{') {
 			stack.push(i);
 		} else if (c === '}') {
