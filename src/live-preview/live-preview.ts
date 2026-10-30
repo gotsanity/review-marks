@@ -2,7 +2,7 @@
 // Annotation, and a badge shows the start of the Comment. A StateField rather than a ViewPlugin,
 // because a Target's syntax can sit outside the visible ranges and decorations must not lag.
 import { MarkdownView, editorLivePreviewField, type App } from 'obsidian';
-import { editorViewOf } from '../guards';
+import { editorViewOf, focusChangeTracking } from '../guards';
 import { Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { blockPrefixLength, excerpt, isTableLine, parse, type Annotation } from '../core';
@@ -32,7 +32,7 @@ const focusField = StateField.define<boolean>({
 });
 const focusTracking: Extension = [
 	focusField,
-	EditorView.focusChangeEffect.of((_state, focusing) => setFocus.of(focusing)),
+	focusChangeTracking((focusing) => setFocus.of(focusing)),
 	// An editor focused before the plugin loaded gets no focus event, and CodeMirror drops its focus
 	// transaction when another lands first. So compare the field with the real focus after updates.
 	ViewPlugin.define((view) => {
