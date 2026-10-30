@@ -44,6 +44,11 @@ body {
 	text-indent: 0;
 }
 
+/* Syntax hidden inside rendered HTML (Live Preview table cells, src/rendered). */
+.rm-hidden {
+	display: none;
+}
+
 /* ---------- Inline comment box (src/comment-box) ---------- */
 
 .rm-cbox {
