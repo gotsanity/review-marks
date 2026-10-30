@@ -2,6 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Drag in reading.md';
 const TEXT = [
@@ -26,7 +27,7 @@ type Point = { x: number; y: number };
 
 /** Opens the note in Reading view, with the drag trigger set to Alt. */
 async function openInReading(): Promise<void> {
-	await obsidianPage.resetVault({ [NOTE]: TEXT });
+	await resetVaultTo({ [NOTE]: TEXT });
 	await obsidianPage.openFile(NOTE);
 	await browser.executeObsidian(async ({ app, obsidian }) => {
 		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);

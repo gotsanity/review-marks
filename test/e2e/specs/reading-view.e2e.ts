@@ -2,6 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { NOTES } from '../fixtures.ts';
+import { resetVaultTo } from '../harness.ts';
 
 /** Opens a note in Reading view and waits for its first section. */
 async function openInReading(path: string): Promise<void> {
@@ -180,7 +181,7 @@ describe('Reading view footnote list', () => {
 		});
 
 	beforeEach(async () => {
-		await obsidianPage.resetVault({ [NOTE]: TEXT });
+		await resetVaultTo({ [NOTE]: TEXT });
 		await updateSettings({ hideReviewFootnotes: true });
 	});
 

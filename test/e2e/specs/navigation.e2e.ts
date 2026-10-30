@@ -1,6 +1,7 @@
 import { $, $$, browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Navigate me.md';
 const TEXT = '# One\n\nAlpha {abc}[^r1] beta {gamma}[^r2].\n\n[^r1]: First.\n[^r2]: Second.\n\n## Two\n\nMore text.\n';
@@ -9,7 +10,7 @@ const TEXT = '# One\n\nAlpha {abc}[^r1] beta {gamma}[^r2].\n\n[^r1]: First.\n[^r
 async function open(text: string, offset: number, source = false): Promise<void> {
 	// Close the note first, so a pending save of the last test's edits can't land after the reset.
 	await browser.executeObsidian(({ app }) => app.workspace.detachLeavesOfType('markdown'));
-	await obsidianPage.resetVault({ [NOTE]: text });
+	await resetVaultTo({ [NOTE]: text });
 	await obsidianPage.openFile(NOTE);
 	await browser.waitUntil(async () => (await editorText()) === text);
 	await browser.executeObsidian(

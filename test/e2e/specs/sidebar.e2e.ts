@@ -1,6 +1,7 @@
 import { $, $$, browser, expect } from '@wdio/globals';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
+import { resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Sidebar me.md';
 const filler = Array.from({ length: 60 }, (_, i) => `Paragraph ${i} of filler text.\n`).join('\n');
@@ -38,7 +39,7 @@ const undo = () =>
 
 async function open(text: string): Promise<void> {
 	await browser.executeObsidian(({ app }) => app.workspace.detachLeavesOfType('markdown'));
-	await obsidianPage.resetVault({ [NOTE]: text });
+	await resetVaultTo({ [NOTE]: text });
 	await obsidianPage.openFile(NOTE);
 	await browser.waitUntil(async () => (await editorText()) === text);
 	await browser.executeObsidianCommand('review-marks:open-annotations-sidebar');
@@ -132,7 +133,7 @@ describe('Annotations sidebar', () => {
 	it('removes from a closed note with Vault.process, keeping CRLF', async () => {
 		const crlf = 'A {b}[^r1] c.\r\n\r\n[^r1]: One.\r\n';
 		await browser.executeObsidian(({ app }) => app.workspace.detachLeavesOfType('markdown'));
-		await obsidianPage.resetVault({ [NOTE]: crlf });
+		await resetVaultTo({ [NOTE]: crlf });
 		await obsidianPage.openFile(NOTE);
 		await expect($('.rm-sidebar .rm-sb-count')).toHaveText('1 annotation');
 		// Close the note from the sidebar; the sidebar keeps listing it.

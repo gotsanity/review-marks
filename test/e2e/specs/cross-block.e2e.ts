@@ -2,6 +2,7 @@ import { browser, expect } from '@wdio/globals';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { NOTES } from '../fixtures.ts';
+import { resetVaultTo } from '../harness.ts';
 
 /** One rendered block (a Live Preview line, or a Reading view element) holding part of a Target. */
 interface Part {
@@ -112,7 +113,7 @@ describe('Targets across blocks and in headings', () => {
 		const NOTE = 'Across.md';
 		const TEXT = 'Alpha {first para.\n\n## Middle\n\nGamma}[^r1] delta.\n\n[^r1]: Spans three blocks.\n';
 		beforeEach(async () => {
-			await obsidianPage.resetVault({ [NOTE]: TEXT });
+			await resetVaultTo({ [NOTE]: TEXT });
 		});
 
 		it('highlights each block in Live Preview', async () => {
