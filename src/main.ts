@@ -11,6 +11,7 @@ import { registerNavigation } from './commands/navigate';
 import { registerRemoveAnnotation } from './commands/remove-annotation';
 import { closeActiveCommentBox } from './comment-box/comment-box';
 import { editorDrag } from './drag/editor-drag';
+import { exportSettings, registerExport } from './export/export';
 import { addDragTriggerSetting } from './drag/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
@@ -47,6 +48,7 @@ export default class ReviewMarksPlugin extends Plugin {
 		]);
 		registerAnnotateSelection(this, settings);
 		registerReadingView(this, settings, popover);
+		registerExport(this, settings);
 		registerMoveComments(this);
 		this.registerEditorExtension(editorDrag(settings, Platform.isMacOS));
 		this.registerEditorExtension(backspaceExtension);
@@ -65,6 +67,7 @@ export default class ReviewMarksPlugin extends Plugin {
 		this.settingsTab.addSection(SECTION_ORDER.drag, (el, store) => {
 			addDragTriggerSetting(el, store.current.dragTrigger, (dragTrigger) => store.update({ dragTrigger }));
 		});
+		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
 		this.register(
 			this.store.onChange(() => {
 				refreshLivePreviews(this.app);
