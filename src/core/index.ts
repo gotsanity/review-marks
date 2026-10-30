@@ -6,3 +6,7 @@ export { applyChanges } from './changes';
 export { definitionText, excerpt, normalizeComment } from './definition';
 export { blockPrefixLength, isTableLine } from './sections';
 export { planCreate, nextId, type CreatePlan, type CreateRequest } from './plan-create';
+export { planRemove, type RemovePlan } from './plan-remove';
+export { planEditComment, type EditCommentPlan, type EditCommentRequest } from './plan-edit-comment';
+export { backspaceAt, type BackspacePlan } from './backspace';
+export { annotationAt, adjacentAnnotation, type AnnotationAtCursor } from './navigate';

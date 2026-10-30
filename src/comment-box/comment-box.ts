@@ -14,6 +14,11 @@ export interface CommentBoxOptions {
 	onSave: (comment: string) => void;
 	/** Called on Esc, Cancel, or when the box closes with nothing typed. */
 	onCancel: () => void;
+	/**
+	 * If set, saving with nothing typed (Enter or Save) calls this and keeps the box open, instead
+	 * of cancelling. For an existing Comment, which must not be saved empty.
+	 */
+	onEmptySave?: () => void;
 }
 
 type Close = 'save' | 'cancel' | 'away';
@@ -111,6 +116,10 @@ export class CommentBox {
 
 	close(how: Close): void {
 		if (this.closed) return;
+		if (how === 'save' && this.options.onEmptySave && this.input.value.trim() === '') {
+			this.options.onEmptySave();
+			return;
+		}
 		this.closed = true;
 		if (active === this) active = null;
 		for (const f of this.cleanup) f();

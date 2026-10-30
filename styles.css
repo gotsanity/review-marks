@@ -94,3 +94,19 @@ body {
 	height: auto;
 	font-size: var(--font-ui-smaller);
 }
+
+/* ---------- Navigation (src/commands/navigate.ts) ---------- */
+
+.rm-target.rm-flash {
+	animation: rm-flash 1.2s ease-out;
+}
+
+@keyframes rm-flash {
+	0%,
+	40% {
+		background-color: var(--rm-accent);
+	}
+	100% {
+		background-color: var(--rm-highlight);
+	}
+}

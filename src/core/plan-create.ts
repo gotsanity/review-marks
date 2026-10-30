@@ -104,7 +104,7 @@ function checkTarget(doc: AnnotationDoc, f: number, t: number): Refusal | null {
 const isWhitespace = (c: string | undefined) => c !== undefined && /\s/.test(c);
 
 /** Where the new definition goes, as one insert. `targetEnd` is where the Target ends. */
-function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement: Placement, def: string): Change {
+export function placeDefinition(doc: AnnotationDoc, targetEnd: number, placement: Placement, def: string): Change {
 	const { text } = doc;
 	const reviewDefEnds = new Set(
 		[...doc.annotations.flatMap((a) => (a.definition ? [a.definition] : [])), ...doc.orphanDefinitions].map((d) => d.to),
