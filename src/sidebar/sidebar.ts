@@ -10,6 +10,7 @@ import { fixIds, jump, removeAnnotation, saveComment } from './actions';
 import { takeEdit } from './comment-editing';
 import { countLabel, OutlineList } from './outline-list';
 import { TrackedNote } from './tracked-note';
+import { protoHeader } from '../drag/PROTOTYPE-review-mode';
 
 export { countLabel } from './outline-list';
 
@@ -65,6 +66,7 @@ export class AnnotationsView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass('rm-sidebar');
+		this.register(protoHeader(this.contentEl));
 		this.list = new OutlineList(this.contentEl, {
 			jump: (id, enter) => void jump(this.app, this.note, id, enter),
 			remove: (id) => void this.after(removeAnnotation(this.note, id)),

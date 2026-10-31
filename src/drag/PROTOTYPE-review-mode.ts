@@ -2,8 +2,8 @@
 // Not production code: no tests, no settings, no polish. It lives on branch
 // prototype/review-mode-selection only.
 //
-// Variants, cycled by the "PROTOTYPE: next review mode variant" command or by clicking the status bar:
-//   off  - Review Mode off.
+// Review Mode is toggled from the sidebar header (or "PROTOTYPE: toggle review mode"); the variant is
+// picked there too:
 //   A    - native selection; annotate as soon as the pointer is released with a non-empty selection.
 //   A+   - native selection; annotate once the selection has settled (no new click within SETTLE_MS),
 //          so a double-click can grow into a triple-click first.
@@ -16,19 +16,63 @@ import { isCommentBoxOpen } from '../comment-box/comment-box';
 import type { ReviewMarksSettings } from '../settings';
 
 export type ProtoVariant = 'off' | 'A' | 'A+' | 'B';
-const ORDER: ProtoVariant[] = ['off', 'A', 'A+', 'B'];
+export type ProtoChoice = 'A' | 'A+' | 'B';
 const SETTLE_MS = 400;
 
-let variant: ProtoVariant = 'off';
+let enabled = false;
+let choice: ProtoChoice = 'A';
 let last = '-';
-let render: () => void = () => {};
+const listeners = new Set<() => void>();
+const render = () => listeners.forEach((l) => l());
 
-export const protoVariant = (): ProtoVariant => variant;
+export const protoVariant = (): ProtoVariant => (enabled ? choice : 'off');
 
 export function protoLog(msg: string): void {
 	last = msg;
 	console.log('[review-mode prototype]', msg);
 	render();
+}
+
+export const PROTO_CHOICES: [ProtoChoice, string][] = [
+	['A', 'A: native selection, opens on release'],
+	['A+', 'A+: native selection, opens after 400 ms'],
+	['B', 'B: plugin takes over the drag'],
+];
+
+/** Draws the sidebar header controls: the Review Mode toggle, the variant picker and the last event. */
+export function protoHeader(container: HTMLElement): () => void {
+	const el = container.createDiv({ cls: 'rm-proto-head' });
+	el.setAttr('style', 'display:flex;flex-direction:column;gap:6px;padding:6px 0 10px;border-bottom:1px solid var(--background-modifier-border);margin-bottom:8px');
+	const toggle = el.createEl('button');
+	toggle.addEventListener('click', () => {
+		enabled = !enabled;
+		protoLog(enabled ? `review mode on (${choice})` : 'review mode off');
+	});
+	const row = el.createDiv();
+	row.setAttr('style', 'display:flex;gap:4px;align-items:center;font-size:var(--font-ui-smaller)');
+	row.createSpan({ text: 'PROTOTYPE variant:' });
+	const picks = PROTO_CHOICES.map(([c, title]) => {
+		const b = row.createEl('button', { text: c, attr: { title } });
+		b.addEventListener('click', () => {
+			choice = c;
+			protoLog(`variant -> ${c}`);
+		});
+		return [c, b] as const;
+	});
+	const desc = el.createDiv();
+	desc.setAttr('style', 'font-size:var(--font-ui-smaller);color:var(--text-muted)');
+	const lastEl = el.createDiv();
+	lastEl.setAttr('style', 'font-size:var(--font-ui-smaller);color:var(--text-faint);word-break:break-word');
+	const draw = () => {
+		toggle.setText(enabled ? 'Review mode: ON' : 'Review mode: off');
+		toggle.toggleClass('mod-cta', enabled);
+		for (const [c, b] of picks) b.toggleClass('mod-cta', c === choice);
+		desc.setText(PROTO_CHOICES.find(([c]) => c === choice)?.[1] ?? '');
+		lastEl.setText(`last: ${last}`);
+	};
+	listeners.add(draw);
+	draw();
+	return () => listeners.delete(draw);
 }
 
 class NativeSelection {
@@ -60,12 +104,12 @@ class NativeSelection {
 	};
 
 	private readonly onUp = (e: PointerEvent): void => {
-		if (variant !== 'A' && variant !== 'A+') return;
+		if (protoVariant() !== 'A' && protoVariant() !== 'A+') return;
 		if (e.button !== 0) return;
 		// Only selections the editor itself made (the gesture began in this editor and it has focus).
 		if (!this.view.hasFocus) return;
 		// Let CodeMirror finish its own mouse-selection handling first.
-		const wait = variant === 'A+' ? SETTLE_MS : 0;
+		const wait = protoVariant() === 'A+' ? SETTLE_MS : 0;
 		this.clear();
 		this.timer = window.setTimeout(() => {
 			this.timer = null;
@@ -87,17 +131,19 @@ class NativeSelection {
 	}
 }
 
-/** Registers the native-selection variants, the cycle command and the status bar readout. */
+/** Registers the native-selection variants and a status bar readout of the last event. */
 export function registerReviewModePrototype(plugin: Plugin, settings: () => ReviewMarksSettings): void {
 	plugin.registerEditorExtension(ViewPlugin.define((view) => new NativeSelection(view, settings)));
 	const bar = plugin.addStatusBarItem();
-	bar.style.cursor = 'pointer';
-	render = () => bar.setText(`PROTO review mode: ${variant} · ${last}`);
-	const next = () => {
-		variant = ORDER[(ORDER.indexOf(variant) + 1) % ORDER.length] ?? 'off';
-		protoLog(`variant -> ${variant}`);
-	};
-	bar.addEventListener('click', next);
-	plugin.addCommand({ id: 'prototype-next-review-mode-variant', name: 'PROTOTYPE: next review mode variant', callback: next });
-	render();
+	const draw = () => bar.setText(`PROTO review mode: ${protoVariant()}`);
+	listeners.add(draw);
+	draw();
+	plugin.addCommand({
+		id: 'prototype-toggle-review-mode',
+		name: 'PROTOTYPE: toggle review mode',
+		callback: () => {
+			enabled = !enabled;
+			protoLog(enabled ? `review mode on (${choice})` : 'review mode off');
+		},
+	});
 }
