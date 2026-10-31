@@ -16,6 +16,7 @@ import type { ReviewMarksSettings } from '../settings';
 import { mapSelection } from '../selection-mapping/selection-mapping';
 import { rangeBetween, swallow, trackPointer } from './track';
 import { triggerHeld } from './trigger';
+import { protoLog, protoVariant } from './PROTOTYPE-review-mode';
 
 const TABLE_UNAVAILABLE = "annotate-on-drag isn't available in this table. Select the text and use Annotate selection.";
 
@@ -56,7 +57,9 @@ class DragHandler {
 	private readonly onDown = (e: PointerEvent): void => {
 		const { view } = this;
 		if (this.end || e.button !== 0 || e.pointerType === 'touch') return;
-		if (!triggerHeld(e, this.settings().dragTrigger, this.isMac)) return;
+		// PROTOTYPE variant B: a drag with no keys held is ours too.
+		const bare = protoVariant() === 'B' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+		if (!bare && !triggerHeld(e, this.settings().dragTrigger, this.isMac)) return;
 		// Excalidraw drawings are left alone: the editor keeps the gesture.
 		if (isExcalidraw(view.state.doc.toString())) return;
 		const target = e.target as Node | null;
@@ -94,6 +97,14 @@ class DragHandler {
 			},
 			finish: (create) => {
 				show(null);
+				// PROTOTYPE variant B: a click that didn't move puts the cursor where it landed.
+				if (protoVariant() === 'B' && head === anchor && view.dom.isConnected) {
+					view.dispatch({ selection: { anchor } });
+					view.focus();
+					protoLog(`B: plain click at ${anchor}, cursor placed`);
+					return;
+				}
+				if (protoVariant() === 'B' && create) protoLog(`B: drag ${Math.min(anchor, head)}-${Math.max(anchor, head)}, annotating`);
 				if (create && head !== anchor && view.dom.isConnected) {
 					annotateRange(view, Math.min(anchor, head), Math.max(anchor, head), this.settings());
 				}
