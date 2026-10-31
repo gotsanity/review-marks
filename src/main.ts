@@ -13,7 +13,7 @@ import { closeActiveCommentBox } from './comment-box/comment-box';
 import { editorDrag } from './drag/editor-drag';
 import { registerReadingDrag } from './drag/reading-drag';
 import { exportSettings, registerExport } from './export/export';
-import { dragSettings } from './drag/setting';
+import { registerRecordersPrototype } from './settings-tab/PROTOTYPE-recorders';
 import { highlightSettings, registerHighlightColour } from './highlight/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
@@ -65,7 +65,7 @@ export default class ReviewMarksPlugin extends Plugin {
 
 		this.settingsTab.addSection(SECTION_ORDER.placement, placementSettings);
 		this.settingsTab.addSection(SECTION_ORDER.display, displaySettings);
-		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings);
+		registerRecordersPrototype(this, SECTION_ORDER.drag); // PROTOTYPE: replaces dragSettings
 		registerHighlightColour(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
 		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
