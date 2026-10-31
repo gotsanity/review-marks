@@ -99,3 +99,7 @@ The repo is private for now, so the `actions/attest` build-provenance step in th
 - [ ] Cut a release and confirm the "Generate artifact attestation" step ran rather than being skipped. Verify it: `gh release download <tag> -p main.js` then `gh attestation verify main.js --repo gotsanity/review-marks`.
 - [ ] Re-check that the plugin id `review-marks` is still free in `community-plugins.json` in obsidianmd/obsidian-releases.
 - [ ] Submit through community.obsidian.md.
+
+## Project status
+
+Current state, next steps, gotchas and working preferences: see `docs/STATUS.md`. Read it at the start of a session.
