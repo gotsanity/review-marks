@@ -1,6 +1,6 @@
 # Project status and handoff notes
 
-The state of the project, and the context that isn't in the code, `CLAUDE.md` or the issue tracker. Last updated 2026-10-31.
+The state of the project, and the context that isn't in the code, `CLAUDE.md` or the issue tracker. Last updated 2026-10-31 (BRAT test passed).
 
 ## Where things stand
 
@@ -13,7 +13,7 @@ The state of the project, and the context that isn't in the code, `CLAUDE.md` or
 
 ## Next steps (the user's plan)
 
-1. **Test 0.1.0 with BRAT** in a real vault and on a **real phone**. Mobile was only tested in emulation.
+1. ~~Test 0.1.0 with BRAT~~: **done 2026-10-31**. The user reports it works fine. Confirm whether a **real phone** was included; mobile was otherwise only tested in emulation.
 2. **Triage #34** if it shows up in real use.
 3. **Verify attestation on the next release:** it's the first one cut since the repo went public. Run `gh attestation verify main.js -R gotsanity/review-marks`.
 4. **Submit to the community directory** following "Before publishing" in `CLAUDE.md`. Recheck that the id `review-marks` is still free.
