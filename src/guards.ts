@@ -83,8 +83,29 @@ export function isTableWidgetChrome(el: Element): boolean {
 	return el.closest('.table-row-drag-handle, .table-col-drag-handle') !== null;
 }
 
-/** The cells of one table widget of `view`, or null if it doesn't match the source or CodeMirror no longer tracks it. */
-export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell[] | null {
+/**
+ * The source range `[from, to)` of the content of the cell that `cellEditor` (a nested
+ * `.cm-editor`) is open in. `rows` are as for `tableWidgetCells`. Null if the widget's structure
+ * doesn't match the source.
+ */
+export function tableCellSource(cellEditor: Element, rows: readonly TableRowSource[]): CellRange | null {
+	const td = cellEditor.closest('td, th');
+	const widget = td && tableWidgetAt(td);
+	if (!td || !widget) return null;
+	const trs = Array.from(widget.querySelectorAll('table tr'));
+	if (trs.length !== rows.length) return null;
+	const r = trs.indexOf(td.parentElement as Element);
+	const row = rows[r];
+	if (!row) return null;
+	const ranges = tableCells(row.text);
+	const tds = Array.from((trs[r] as Element).children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+	const range = ranges[tds.indexOf(td)];
+	if (tds.length !== ranges.length || !range) return null;
+	return { from: row.from + range.from, to: row.from + range.to };
+}
+
+/** The source rows of one table widget of `view` without the delimiter row, or null if CodeMirror no longer tracks it. */
+function widgetRows(view: EditorView, widget: HTMLElement): TableRowSource[] | null {
 	const doc = view.state.doc;
 	try {
 		const first = doc.lineAt(view.posAtDOM(widget));
@@ -95,11 +116,37 @@ export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell
 			if (!isTableLine(line.text)) break;
 			if (!isDelimiterRow(line.text)) rows.push({ from: line.from, text: line.text });
 		}
-		return tableWidgetCells(widget, rows);
+		return rows;
 	} catch {
 		// posAtDOM throws for a widget CodeMirror no longer tracks.
 		return null;
 	}
+}
+
+/** The cells of one table widget of `view`, or null if it doesn't match the source or CodeMirror no longer tracks it. */
+export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell[] | null {
+	const rows = widgetRows(view, widget);
+	return rows && tableWidgetCells(widget, rows);
+}
+
+/** A cell editor open in one of a note editor's table widgets, with its cell's source range in the note. */
+export interface OpenCellEditor {
+	view: EditorView;
+	cell: CellRange;
+}
+
+/**
+ * The cell editor that `el` is in, if it is one nested in a table widget of the note editor `view`.
+ * Null if there is none, or if CodeMirror or the widget's structure doesn't let it be found.
+ */
+export function cellEditorAt(view: EditorView, el: Element): OpenCellEditor | null {
+	const dom = el.closest<HTMLElement>('.cm-editor');
+	const widget = dom?.parentElement && tableWidgetAt(dom.parentElement);
+	if (!dom || !widget || widget.closest('.cm-editor') !== view.dom) return null;
+	const cellView = typeof EditorView.findFromDOM === 'function' ? EditorView.findFromDOM(dom) : null;
+	const rows = widgetRows(view, widget);
+	const cell = rows && tableCellSource(dom, rows);
+	return cellView && cell ? { view: cellView, cell } : null;
 }
 
 /** The table widgets in a Live Preview editor, each with its cells, skipping any that don't match the source. */
