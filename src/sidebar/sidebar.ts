@@ -5,6 +5,8 @@
 // comment-editing.ts (the Comment textareas) and actions.ts (what the controls do).
 import { ItemView, MarkdownView, Scope, type Plugin, type WorkspaceLeaf } from 'obsidian';
 import { duplicateIds, isExcalidraw, outline, parse } from '../core';
+import { reviewModeHeader } from '../review-mode/feedback';
+import type { ReviewModeStore } from '../review-mode/store';
 import type { ReviewMarksSettings } from '../settings';
 import { fixIds, jump, removeAnnotation, saveComment } from './actions';
 import { takeEdit } from './comment-editing';
@@ -22,9 +24,12 @@ export async function openSidebar(plugin: Plugin): Promise<void> {
 	await plugin.app.workspace.ensureSideLeaf(VIEW_TYPE_ANNOTATIONS, 'right', { active: true, reveal: true });
 }
 
-/** Registers the view, its ribbon icon and the "Open annotations sidebar" command (no default hotkey). */
-export function registerSidebar(plugin: Plugin, settings: () => ReviewMarksSettings): void {
-	plugin.registerView(VIEW_TYPE_ANNOTATIONS, (leaf) => new AnnotationsView(leaf, settings));
+/**
+ * Registers the view, its ribbon icon and the "Open annotations sidebar" command (no default
+ * hotkey). With a Review Mode store (desktop), the view gets a header with its toggle button.
+ */
+export function registerSidebar(plugin: Plugin, settings: () => ReviewMarksSettings, reviewMode: ReviewModeStore | null): void {
+	plugin.registerView(VIEW_TYPE_ANNOTATIONS, (leaf) => new AnnotationsView(leaf, settings, reviewMode));
 	const open = () => void openSidebar(plugin);
 	plugin.addRibbonIcon(ICON, 'Open annotations sidebar', open);
 	plugin.addCommand({ id: 'open-annotations-sidebar', name: 'Open annotations sidebar', callback: open });
@@ -38,6 +43,7 @@ export class AnnotationsView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly settings: () => ReviewMarksSettings,
+		private readonly reviewMode: ReviewModeStore | null,
 	) {
 		super(leaf);
 		// Obsidian's keymap sees Mod+Enter before a textarea does; the view's own Scope runs first.
@@ -65,6 +71,7 @@ export class AnnotationsView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass('rm-sidebar');
+		if (this.reviewMode) this.register(reviewModeHeader(this.containerEl, this.contentEl, this.reviewMode));
 		this.list = new OutlineList(this.contentEl, {
 			jump: (id, enter) => void jump(this.app, this.note, id, enter),
 			remove: (id) => void this.after(removeAnnotation(this.note, id)),

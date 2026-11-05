@@ -282,3 +282,9 @@ body {
 	font-size: var(--font-ui-small);
 	line-height: 1.4;
 }
+
+/* ---------- Review Mode (src/review-mode) ---------- */
+
+.rm-status-review-mode {
+	gap: var(--size-2-2);
+}

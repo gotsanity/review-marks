@@ -26,6 +26,10 @@ export async function freshState(): Promise<void> {
 		for (const leaf of leaves) leaf.detach();
 	});
 	await obsidianPage.resetVault();
+	// Review Mode is never saved and starts off; a test that turned it on mustn't leave it on.
+	await browser.executeObsidian(({ plugins }) => {
+		(plugins.reviewMarks as unknown as { reviewMode?: { set(on: boolean): void } }).reviewMode?.set(false);
+	});
 	if (!initialSettings) {
 		initialSettings = await browser.executeObsidian(({ plugins }) =>
 			structuredClone((plugins.reviewMarks as unknown as { settings: Settings }).settings),
