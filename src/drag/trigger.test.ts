@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragTriggerOptions, effectiveTrigger, isDragTrigger, triggerHeld } from './trigger';
+import { effectiveTrigger, isDragTrigger, triggerFor, triggerHeld, triggerLabel } from './trigger';
 
 const keys = (held: string) => ({
 	ctrlKey: held.includes('ctrl'),
@@ -69,43 +69,94 @@ describe('effectiveTrigger: a value stored on another platform', () => {
 	});
 });
 
-describe('dragTriggerOptions', () => {
-	it('lists the Windows and Linux choices in order, Off first', () => {
-		expect(dragTriggerOptions(false).map(([, label]) => label)).toEqual([
-			'Off',
-			'Alt',
-			'Ctrl',
-			'Shift',
-			'Meta',
-			'Ctrl+Alt',
-			'Ctrl+Shift',
-			'Alt+Shift',
-			'Ctrl+Alt+Shift',
-		]);
+describe('triggerFor: the held modifiers as a stored trigger', () => {
+	it('stores every Windows and Linux combination', () => {
+		expect(triggerFor(keys('alt'), false)).toBe('alt');
+		expect(triggerFor(keys('ctrl'), false)).toBe('mod');
+		expect(triggerFor(keys('shift'), false)).toBe('shift');
+		expect(triggerFor(keys('meta'), false)).toBe('meta');
+		expect(triggerFor(keys('ctrl alt'), false)).toBe('mod-alt');
+		expect(triggerFor(keys('ctrl shift'), false)).toBe('mod-shift');
+		expect(triggerFor(keys('alt shift'), false)).toBe('alt-shift');
+		expect(triggerFor(keys('ctrl alt shift'), false)).toBe('mod-alt-shift');
 	});
 
-	it('names the macOS keys Option, Cmd and Control', () => {
-		expect(dragTriggerOptions(true).map(([, label]) => label)).toEqual([
-			'Off',
-			'Option',
-			'Cmd',
-			'Control',
-			'Shift',
-			'Cmd+Option',
-			'Cmd+Shift',
-			'Control+Option',
-			'Control+Shift',
-			'Option+Shift',
-			'Cmd+Option+Shift',
-			'Control+Option+Shift',
-		]);
+	it('stores every macOS combination, reading Cmd as mod and Control as ctrl', () => {
+		expect(triggerFor(keys('alt'), true)).toBe('alt');
+		expect(triggerFor(keys('meta'), true)).toBe('mod');
+		expect(triggerFor(keys('ctrl'), true)).toBe('ctrl');
+		expect(triggerFor(keys('shift'), true)).toBe('shift');
+		expect(triggerFor(keys('meta alt'), true)).toBe('mod-alt');
+		expect(triggerFor(keys('meta shift'), true)).toBe('mod-shift');
+		expect(triggerFor(keys('ctrl alt'), true)).toBe('ctrl-alt');
+		expect(triggerFor(keys('ctrl shift'), true)).toBe('ctrl-shift');
+		expect(triggerFor(keys('alt shift'), true)).toBe('alt-shift');
+		expect(triggerFor(keys('meta alt shift'), true)).toBe('mod-alt-shift');
+		expect(triggerFor(keys('ctrl alt shift'), true)).toBe('ctrl-alt-shift');
 	});
 
-	it('offers the effective value of every stored trigger', () => {
+	it('is Off when nothing is held', () => {
+		expect(triggerFor(keys(''), false)).toBe('off');
+		expect(triggerFor(keys(''), true)).toBe('off');
+	});
+
+	it("can't store combinations no trigger value holds", () => {
+		for (const held of ['ctrl meta', 'meta alt', 'meta shift', 'ctrl meta alt shift']) {
+			expect(triggerFor(keys(held), false)).toBeNull();
+		}
+		for (const held of ['ctrl meta', 'ctrl meta alt', 'ctrl meta alt shift']) {
+			expect(triggerFor(keys(held), true)).toBeNull();
+		}
+	});
+});
+
+describe('triggerLabel: a stored trigger in the hotkey printer style', () => {
+	it('prints Windows and Linux triggers as "Ctrl + Alt"', () => {
+		expect(triggerLabel('off', false)).toBe('Off');
+		expect(triggerLabel('alt', false)).toBe('Alt');
+		expect(triggerLabel('mod', false)).toBe('Ctrl');
+		expect(triggerLabel('meta', false)).toBe('Win');
+		expect(triggerLabel('mod-alt', false)).toBe('Ctrl + Alt');
+		expect(triggerLabel('mod-alt-shift', false)).toBe('Ctrl + Alt + Shift');
+	});
+
+	it('prints macOS triggers as "⌘ ⌥"', () => {
+		expect(triggerLabel('off', true)).toBe('Off');
+		expect(triggerLabel('mod', true)).toBe('⌘');
+		expect(triggerLabel('ctrl', true)).toBe('⌃');
+		expect(triggerLabel('mod-alt', true)).toBe('⌘ ⌥');
+		expect(triggerLabel('ctrl-alt-shift', true)).toBe('⌃ ⌥ ⇧');
+	});
+
+	it('prints a value stored on the other platform as this platform reads it', () => {
+		expect(triggerLabel('ctrl-shift', false)).toBe('Ctrl + Shift');
+		expect(triggerLabel('meta', true)).toBe('⌘');
+	});
+});
+
+describe('recording the keys a stored trigger shows', () => {
+	const STORED = ['off', 'alt', 'mod', 'ctrl', 'shift', 'meta', 'mod-alt', 'mod-shift', 'ctrl-alt', 'ctrl-shift', 'alt-shift', 'mod-alt-shift', 'ctrl-alt-shift'] as const;
+
+	// Every set of held modifiers, from none to all four.
+	const ALL_HELD = Array.from({ length: 16 }, (_, bits) =>
+		['ctrl', 'meta', 'alt', 'shift'].filter((_, i) => bits & (1 << i)).join(' '),
+	);
+
+	it('records the keys that drag with a stored trigger as that same trigger', () => {
 		for (const isMac of [false, true]) {
-			const values = dragTriggerOptions(isMac).map(([v]) => v);
-			for (const [stored] of [...dragTriggerOptions(false), ...dragTriggerOptions(true)]) {
-				expect(values).toContain(effectiveTrigger(stored, isMac));
+			for (const stored of STORED.filter((t) => t !== 'off')) {
+				const held = ALL_HELD.filter((h) => triggerHeld(keys(h), stored, isMac));
+				expect(held).toHaveLength(1);
+				expect(triggerFor(keys(held[0] as string), isMac)).toBe(effectiveTrigger(stored, isMac));
+			}
+		}
+	});
+
+	it('records only combinations that drag with the trigger it records', () => {
+		for (const isMac of [false, true]) {
+			for (const held of ALL_HELD) {
+				const trigger = triggerFor(keys(held), isMac);
+				if (trigger && trigger !== 'off') expect(triggerHeld(keys(held), trigger, isMac)).toBe(true);
 			}
 		}
 	});

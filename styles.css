@@ -288,3 +288,13 @@ body {
 .rm-status-review-mode {
 	gap: var(--size-2-2);
 }
+
+/* ---------- Drag trigger recorder (src/drag/setting.ts) ---------- */
+
+.review-marks-trigger-field {
+	min-width: 150px;
+}
+
+.review-marks-trigger-hint:empty {
+	display: none;
+}

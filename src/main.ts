@@ -72,7 +72,7 @@ export default class ReviewMarksPlugin extends Plugin {
 
 		this.settingsTab.addSection(SECTION_ORDER.placement, placementSettings);
 		this.settingsTab.addSection(SECTION_ORDER.display, displaySettings);
-		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings);
+		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings(this.app, Platform.isMacOS));
 		registerHighlightColour(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
 		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
