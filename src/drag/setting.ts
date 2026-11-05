@@ -14,8 +14,8 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 			.setDesc(
 				"Hold these keys while you drag-select text to annotate it at once. The editor's own behaviour for this combination is turned off while the setting is on. Click the field and press the keys to change it.",
 			);
-		const hint = setting.descEl.createDiv({ cls: 'review-marks-trigger-hint mod-warning' });
-		const field = setting.controlEl.createEl('button', { cls: 'review-marks-trigger-field' });
+		const hint = setting.descEl.createDiv({ cls: 'rm-trigger-hint mod-warning' });
+		const field = setting.controlEl.createEl('button', { cls: 'rm-trigger-field' });
 		let stop: (() => void) | null = null;
 
 		const showStored = () => {
@@ -79,7 +79,7 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 			if (!stop) start();
 		});
 		setting.addExtraButton((button) => {
-			button.extraSettingsEl.addClass('review-marks-trigger-off');
+			button.extraSettingsEl.addClass('rm-trigger-off');
 			button
 				.setIcon('x')
 				.setTooltip('Turn off')
