@@ -7,7 +7,8 @@
 import { MarkdownView, type Plugin, type Workspace } from 'obsidian';
 import { annotateRange } from '../commands/annotate-selection';
 import { normalizeLineEndings } from '../core';
-import { caretFromPoint, keepsOwnDrag, scrollToAnnotation, showDragRange, switchToLivePreview, type Caret } from '../guards';
+import { onEveryWindow } from '../every-window';
+import { caretFromPoint, inRenderedNoteText, keepsOwnDrag, scrollToAnnotation, showDragRange, switchToLivePreview, type Caret } from '../guards';
 import { notify } from '../notice';
 import { renderedSections } from '../reading-view/reading-view';
 import type { ReviewMarksSettings } from '../settings';
@@ -54,8 +55,9 @@ export async function annotateInLivePreview(
 	annotateRange(cm, target.from, target.to, settings);
 }
 
-/** The note in Reading view whose rendered content holds `el`, if any. */
+/** The note in Reading view whose rendered note text holds `el`, if any. Its inline title, properties and footer don't count. */
 export function readingViewAt(workspace: Workspace, el: Element): MarkdownView | null {
+	if (!inRenderedNoteText(el)) return null;
 	let found: MarkdownView | null = null;
 	workspace.iterateAllLeaves((leaf) => {
 		const v = leaf.view;
@@ -64,7 +66,7 @@ export function readingViewAt(workspace: Workspace, el: Element): MarkdownView |
 	return found;
 }
 
-/** Registers the gesture on the main window. `isMac` is `Platform.isMacOS`. */
+/** Registers the gesture on every window. `isMac` is `Platform.isMacOS`. */
 export function registerReadingDrag(plugin: Plugin, settings: () => ReviewMarksSettings, isMac: boolean): void {
 	const { workspace } = plugin.app;
 	let active = false;
@@ -112,5 +114,5 @@ export function registerReadingDrag(plugin: Plugin, settings: () => ReviewMarksS
 		});
 	};
 
-	plugin.registerDomEvent(document, 'pointerdown', onDown, { capture: true });
+	onEveryWindow(plugin, (win) => plugin.registerDomEvent(win.document, 'pointerdown', onDown, { capture: true }));
 }

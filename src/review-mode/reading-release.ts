@@ -10,6 +10,7 @@ import { annotateInLivePreview, readingViewAt } from '../drag/reading-drag';
 import { triggerHeld } from '../drag/trigger';
 import { keepsOwnDrag } from '../guards';
 import { notify } from '../notice';
+import { onEveryWindow } from '../every-window';
 import { renderedSections } from '../reading-view/reading-view';
 import type { ReviewMarksSettings } from '../settings';
 import { releaseDecision, type Release } from './release';
@@ -23,7 +24,7 @@ interface Down {
 	boxOpen: boolean;
 }
 
-/** Registers the release handling on the main window. Desktop only. `isMac` is `Platform.isMacOS`. */
+/** Registers the release handling on every window. Desktop only. `isMac` is `Platform.isMacOS`. */
 export function registerReadingRelease(plugin: Plugin, store: ReviewModeStore, settings: () => ReviewMarksSettings, isMac: boolean): void {
 	const { workspace } = plugin.app;
 	let down: Down | null = null;
@@ -45,7 +46,7 @@ export function registerReadingRelease(plugin: Plugin, store: ReviewModeStore, s
 		if (!was?.view || !store.on || e.button !== 0 || e.pointerType === 'touch') return;
 		const view = was.view;
 		// Let the browser finish its own selection handling first.
-		window.setTimeout(() => void release(view, was), 0);
+		view.containerEl.win.setTimeout(() => void release(view, was), 0);
 	};
 
 	const release = async (view: MarkdownView, was: Down): Promise<void> => {
@@ -64,6 +65,8 @@ export function registerReadingRelease(plugin: Plugin, store: ReviewModeStore, s
 		await annotateInLivePreview(view, text, decision.start, range, settings());
 	};
 
-	plugin.registerDomEvent(window, 'pointerdown', onDown, { capture: true });
-	plugin.registerDomEvent(window, 'pointerup', onUp, { capture: true });
+	onEveryWindow(plugin, (win) => {
+		plugin.registerDomEvent(win, 'pointerdown', onDown, { capture: true });
+		plugin.registerDomEvent(win, 'pointerup', onUp, { capture: true });
+	});
 }

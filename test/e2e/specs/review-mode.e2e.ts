@@ -354,6 +354,43 @@ async function expectIgnored(): Promise<void> {
 	expect(await obsidianPage.read(READ_NOTE)).toBe(READ_TEXT);
 }
 
+/** Screen points in the popout window's Reading view, like readingPoints; null until it is rendered. */
+const popoutPoints = (needle: string) =>
+	browser.executeObsidian(({ app, obsidian }, needle) => {
+		const leaf = app.workspace.getLeavesOfType('markdown').find((l) => l.view.containerEl.ownerDocument !== document);
+		const view = leaf?.view instanceof obsidian.MarkdownView ? leaf.view : null;
+		if (!view || view.getMode() !== 'preview') return null;
+		const doc = view.containerEl.ownerDocument;
+		const walker = doc.createTreeWalker(view.previewMode.containerEl, NodeFilter.SHOW_TEXT);
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			const i = (n as Text).data.indexOf(needle);
+			if (i < 0) continue;
+			const rect = (at: number) => {
+				const r = doc.createRange();
+				r.setStart(n, at);
+				r.setEnd(n, at + 1);
+				return r.getBoundingClientRect();
+			};
+			const a = rect(i);
+			const b = rect(i + needle.length - 1);
+			if (a.width === 0) return null;
+			const y = Math.round((a.top + a.bottom) / 2);
+			return { start: { x: Math.round(a.left + 1), y }, end: { x: Math.round(b.right - 1), y } };
+		}
+		return null;
+	}, needle);
+
+/** The popout window's note: its mode, and whether a comment box is open in it. */
+const popoutState = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const leaf = app.workspace.getLeavesOfType('markdown').find((l) => l.view.containerEl.ownerDocument !== document);
+		const view = leaf?.view instanceof obsidian.MarkdownView ? leaf.view : null;
+		return {
+			mode: view?.getMode() === 'preview' ? 'preview' : 'live',
+			box: view?.containerEl.ownerDocument.querySelector('.rm-cbox') != null,
+		};
+	});
+
 describe('Review Mode: annotating in Reading view', () => {
 	beforeEach(async () => {
 		await openReading();
@@ -399,6 +436,63 @@ describe('Review Mode: annotating in Reading view', () => {
 		const { start, end } = await readingPoints('Embedded words');
 		await pointerDrag(start, end);
 		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on the inline title', async () => {
+		const { start } = await readingPoints('Read me');
+		const { end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on the properties', async () => {
+		const text = `---\ntags: draft\n---\n${READ_TEXT}`;
+		await resetVaultTo({ [READ_NOTE]: text, 'Embedded.md': 'Embedded words to select.\n' });
+		await browser.waitUntil(async () => (await readingPoints('Properties').catch(() => null)) !== null, {
+			timeoutMsg: 'the properties are not rendered',
+		});
+		const { start } = await readingPoints('Properties');
+		const { end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await browser.pause(300);
+		expect(await noteMode()).toBe('preview');
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await $$('.notice').length).toBe(0);
+		expect(await obsidianPage.read(READ_NOTE)).toBe(text);
+	});
+
+	it('annotates in Reading view in a popout window', async () => {
+		const main = await browser.getWindowHandle();
+		const before = await browser.getWindowHandles();
+		await browser.executeObsidian(async ({ app, obsidian }, path) => {
+			const file = app.vault.getFileByPath(path);
+			if (!file) throw new Error('no note');
+			const leaf = app.workspace.openPopoutLeaf();
+			await leaf.openFile(file, { state: { mode: 'preview' } });
+			if (!(leaf.view instanceof obsidian.MarkdownView)) throw new Error('no markdown view');
+			app.workspace.setActiveLeaf(leaf, { focus: true });
+		}, READ_NOTE);
+		await browser.waitUntil(async () => (await browser.getWindowHandles()).length > before.length, { timeoutMsg: 'no popout' });
+		const popout = (await browser.getWindowHandles()).find((h) => !before.includes(h)) as string;
+		await browser.waitUntil(async () => (await popoutPoints('the save')) !== null, { timeoutMsg: 'the popout note is not rendered' });
+		const points = (await popoutPoints('the save')) as { start: Point; end: Point };
+		try {
+			await browser.switchToWindow(popout);
+			await pointerDrag(points.start, points.end);
+		} finally {
+			await browser.switchToWindow(main);
+		}
+		await browser.waitUntil(async () => (await popoutState()).box, { timeoutMsg: 'no comment box in the popout' });
+		expect((await popoutState()).mode).toBe('live');
+		await browser.switchToWindow(popout);
+		await browser.keys('Escape');
+		await browser.switchToWindow(main);
+		await browser.waitUntil(async () => !(await popoutState()).box, { timeoutMsg: 'the comment box stayed open' });
+		await browser.executeObsidian(({ app }) => {
+			app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+				if (leaf.view.containerEl.ownerDocument !== document) leaf.detach();
+			});
+		});
 	});
 
 	it('refuses a selection inside code with a notice and stays in Reading view', async () => {

@@ -174,6 +174,22 @@ export function keepsOwnDrag(el: Element): boolean {
 	return el.closest(OWN_DRAG) !== null;
 }
 
+// Reading view draws the note's sections as children of the sizer, next to the inline title and
+// properties (.mod-header), the embedded backlinks (.mod-footer) and a spacer (the pusher).
+const NOT_NOTE_TEXT = '.markdown-preview-pusher, .mod-header, .mod-footer';
+
+/**
+ * Is `el` in the rendered note text of a Reading view, not its inline title, properties, footer or
+ * the space around them? False if Reading view isn't drawn as expected.
+ */
+export function inRenderedNoteText(el: Element): boolean {
+	for (let node: Element | null = el; node; node = node.parentElement) {
+		const parent = node.parentElement;
+		if (parent?.classList.contains('markdown-preview-sizer')) return !node.matches(NOT_NOTE_TEXT);
+	}
+	return false;
+}
+
 // ---------- Focus ----------
 
 /**
