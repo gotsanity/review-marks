@@ -24,9 +24,12 @@ One folder or file per module, so features land as new files:
 - `src/export/`: PDF export and Copy as HTML (renders with no section info, see `isExportRender` in guards). `cleanExport` in `src/rendered/export.ts` finds each Annotation from its rendered footnote reference, removes the braces and, with "Strip annotations from exports", the Comments too.
 - `src/comment-box/`: the inline comment box. Callers decide what save and cancel do.
 - `src/live-preview/`: Live Preview decorations. `src/badge.ts` makes every badge. `src/drag/`: annotate on drag, with `track.ts` the pointer loop shared by the editor and Reading view.
+- `src/review-mode/`: Review Mode, desktop only. `store.ts` holds the on/off state (never saved) and `feedback.ts` the command, indicator and header button. `releaseDecision` in `release.ts` is pure: a pointer release over a selection starts an Annotation, is ignored or is refused. `editor-release.ts` (Live Preview, Source mode and table cell editors, via `table-cell.ts`) and `reading-release.ts` (Reading view, via `reading-selection.ts`) feed it, sharing `press.ts`.
+- `src/reading-annotate/`: what annotate-on-drag and Review Mode share in Reading view: `readingRange` maps a DOM Range over the rendered sections to the note (pure), and `annotateInLivePreview` switches the note to Live Preview to create the Annotation there. `src/pointer.ts` reads pointer events the same way for both, and `src/every-window.ts` adds window listeners to the main window and every popout.
 - `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
 - `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
 - `src/sidebar/`: the annotations sidebar (`ItemView`), built from the core's `outline(doc, noteName)`: `tracked-note.ts` (which note), `outline-list.ts` (drawing), `comment-editing.ts` and `actions.ts`. Edits go to the open editor, else through `Vault.process`. `src/status-bar/`: the "N annotations" count and its setting.
+- `src/hotkeys/`: the read-only Hotkeys settings section (`setting.ts`) and `printer.ts`, a pure copy of Obsidian's hotkey printer with the platform as an argument. Hotkeys are read and the Hotkeys tab opened through guards; the plugin never writes hotkeys.
 - `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
 - `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
 
@@ -39,6 +42,7 @@ The plugin's floor is Obsidian 1.7.4 (`minAppVersion`). The `obsidian` typings s
 - `npm test` runs once; `npm run test:watch` watches.
 - Tests sit next to the code as `src/**/*.test.ts`. Pure modules (the annotation core, selection mapping) are tested here on plain strings or a fake DOM, never with Obsidian imports.
 - Fake-DOM tests start with `// @vitest-environment happy-dom` and import `src/test-support/fake-dom.ts`, which builds blocks and Ranges and installs the Obsidian DOM helpers (`el.doc`, `createSpan`) the code uses.
+- The `obsidian` package has typings only, so `vitest.config.ts` aliases it to `src/test-support/obsidian.ts`, a small stand-in (`Setting` and its buttons, drawing Obsidian's markup). Extend it when code under test needs more.
 
 ### End-to-end tests (wdio-obsidian-service)
 

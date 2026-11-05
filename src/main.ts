@@ -15,12 +15,17 @@ import { registerReadingDrag } from './drag/reading-drag';
 import { exportSettings, registerExport } from './export/export';
 import { dragSettings } from './drag/setting';
 import { highlightSettings, registerHighlightColour } from './highlight/setting';
+import { hotkeysSettings } from './hotkeys/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
 import { livePreviewPopover } from './live-preview/popover';
 import { tableCellDecorations } from './live-preview/table-cells';
 import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
+import { editorRelease } from './review-mode/editor-release';
+import { registerReviewMode } from './review-mode/feedback';
+import { registerReadingRelease } from './review-mode/reading-release';
+import { ReviewModeStore } from './review-mode/store';
 import { displaySettings } from './settings-tab/display';
 import { placementSettings } from './settings-tab/placement';
 import { ReviewMarksSettingTab, SECTION_ORDER } from './settings-tab/settings-tab';
@@ -28,6 +33,8 @@ import { DEFAULT_SETTINGS, SettingsStore, settingsFrom, type ReviewMarksSettings
 
 export default class ReviewMarksPlugin extends Plugin {
 	store = new SettingsStore({ ...DEFAULT_SETTINGS }, (s) => this.saveData(s));
+	/** Review Mode on or off, for the whole workspace. Never saved. */
+	reviewMode = new ReviewModeStore();
 	/** Features add their controls with `settingsTab.addSection(SECTION_ORDER.x, render)`. */
 	settingsTab!: ReviewMarksSettingTab;
 
@@ -59,16 +66,23 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerNavigation(this);
 		registerContextMenu(this, settings);
 		registerEditComment(this, settings);
-		registerSidebar(this, settings);
+		// Desktop only. Registered before the count so its status bar item sits just left of it.
+		if (!Platform.isMobile) {
+			registerReviewMode(this, this.reviewMode);
+			this.registerEditorExtension(editorRelease(this.reviewMode, settings, Platform.isMacOS));
+			registerReadingRelease(this, this.reviewMode, settings, Platform.isMacOS);
+		}
+		registerSidebar(this, settings, Platform.isMobile ? null : this.reviewMode);
 		registerStatusBar(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.statusBar, statusBarSettings);
 
 		this.settingsTab.addSection(SECTION_ORDER.placement, placementSettings);
 		this.settingsTab.addSection(SECTION_ORDER.display, displaySettings);
-		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings);
+		this.settingsTab.addSection(SECTION_ORDER.drag, dragSettings(this.app, Platform.isMacOS));
 		registerHighlightColour(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
 		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
+		this.settingsTab.addSection(SECTION_ORDER.hotkeys, hotkeysSettings(this, Platform.isMacOS));
 		this.register(
 			this.store.onChange(() => {
 				refreshLivePreviews(this.app);

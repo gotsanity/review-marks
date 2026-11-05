@@ -3,7 +3,7 @@
 import { browser, expect } from '@wdio/globals';
 import { describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { resetVaultTo } from '../harness.ts';
+import { doubleClick, resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Isolation.md';
 const FIRST = '# First\n\nThe earlier test edits this.\n\n## End\n';
@@ -48,5 +48,22 @@ describe('Test isolation', () => {
 		// Obsidian reloads its config about half a second after the config dir changes.
 		await browser.pause(1500);
 		expect(await config()).toEqual(expected);
+	});
+});
+
+describe('Pointer helpers', () => {
+	it('double-clicks with real pointer actions, selecting the word under the point', async () => {
+		await resetVaultTo({ [NOTE]: '# Words\n\nKell fails the save.\n' });
+		await obsidianPage.openFile(NOTE);
+		const point = await browser.executeObsidian(({ app }) => {
+			const editor = app.workspace.activeEditor?.editor;
+			type Rect = { left: number; right: number; top: number; bottom: number };
+			const cm = (editor as unknown as { cm?: { coordsAtPos(pos: number, side: number): Rect | null } }).cm;
+			const r = cm?.coordsAtPos((editor?.getValue() ?? '').indexOf('fails') + 2, 1);
+			return r ? { x: Math.round(r.left), y: Math.round((r.top + r.bottom) / 2) } : null;
+		});
+		if (!point) throw new Error('"fails" is not on screen');
+		await doubleClick(point);
+		expect(await browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getSelection() ?? '')).toBe('fails');
 	});
 });

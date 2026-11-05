@@ -282,3 +282,24 @@ body {
 	font-size: var(--font-ui-small);
 	line-height: 1.4;
 }
+
+/* ---------- Review Mode (src/review-mode) ---------- */
+
+.rm-status-review-mode {
+	gap: var(--size-2-2);
+}
+
+/* A hotkey in the Hotkeys section that another command also uses. */
+.setting-hotkey.rm-hotkey-conflict {
+	color: var(--text-error);
+}
+
+/* ---------- Drag trigger recorder (src/drag/setting.ts) ---------- */
+
+.rm-trigger-field {
+	min-width: 150px;
+}
+
+.rm-trigger-hint:empty {
+	display: none;
+}

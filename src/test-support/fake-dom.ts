@@ -1,17 +1,19 @@
 // Helpers for fake-DOM unit tests (`// @vitest-environment happy-dom`). Not bundled.
 // Importing this also installs the few DOM helpers Obsidian adds that the code under test uses
-// (`node.doc`, `node.win`, `node.createSpan`, `el.addClass`, `el.removeClass`, global
+// (`node.doc`, `node.win`, `node.createSpan`, `node.createDiv`, `el.addClass`, `el.removeClass`, global
 // `createSpan`), so it runs in the fake DOM.
 
 interface SpanInfo {
 	cls?: string;
 	text?: string;
+	attr?: Record<string, string>;
 }
 
 function span(doc: Document, o: SpanInfo = {}): HTMLSpanElement {
 	const el = doc.createElement('span');
 	if (o.cls) el.className = o.cls;
 	if (o.text !== undefined) el.textContent = o.text;
+	for (const [name, value] of Object.entries(o.attr ?? {})) el.setAttribute(name, value);
 	return el;
 }
 
@@ -37,6 +39,12 @@ function installObsidianDom(): void {
 	};
 	proto.createSpan = function (this: Node, o?: SpanInfo) {
 		return this.appendChild(span(this.ownerDocument ?? (this as Document), o));
+	};
+	proto.createDiv = function (this: Node, o: SpanInfo = {}) {
+		const div = (this.ownerDocument ?? (this as Document)).createElement('div');
+		if (o.cls) div.className = o.cls;
+		if (o.text !== undefined) div.textContent = o.text;
+		return this.appendChild(div);
 	};
 	(window as unknown as Record<string, unknown>).createSpan = (o?: SpanInfo) => span(document, o);
 }

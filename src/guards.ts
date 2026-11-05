@@ -1,5 +1,5 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
-import type { Editor, MarkdownPreviewView, MarkdownView } from 'obsidian';
+import type { App, Editor, Hotkey, MarkdownPreviewView, MarkdownView } from 'obsidian';
 import type { ChangeDesc, EditorState, Extension, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isDelimiterRow, isTableLine, lineOfOffset, lineStarts, normalizeLineEndings, tableCells, type CellRange } from './core';
@@ -83,8 +83,29 @@ export function isTableWidgetChrome(el: Element): boolean {
 	return el.closest('.table-row-drag-handle, .table-col-drag-handle') !== null;
 }
 
-/** The cells of one table widget of `view`, or null if it doesn't match the source or CodeMirror no longer tracks it. */
-export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell[] | null {
+/**
+ * The source range `[from, to)` of the content of the cell that `cellEditor` (a nested
+ * `.cm-editor`) is open in. `rows` are as for `tableWidgetCells`. Null if the widget's structure
+ * doesn't match the source.
+ */
+export function tableCellSource(cellEditor: Element, rows: readonly TableRowSource[]): CellRange | null {
+	const td = cellEditor.closest('td, th');
+	const widget = td && tableWidgetAt(td);
+	if (!td || !widget) return null;
+	const trs = Array.from(widget.querySelectorAll('table tr'));
+	if (trs.length !== rows.length) return null;
+	const r = trs.indexOf(td.parentElement as Element);
+	const row = rows[r];
+	if (!row) return null;
+	const ranges = tableCells(row.text);
+	const tds = Array.from((trs[r] as Element).children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+	const range = ranges[tds.indexOf(td)];
+	if (tds.length !== ranges.length || !range) return null;
+	return { from: row.from + range.from, to: row.from + range.to };
+}
+
+/** The source rows of one table widget of `view` without the delimiter row, or null if CodeMirror no longer tracks it. */
+function widgetRows(view: EditorView, widget: HTMLElement): TableRowSource[] | null {
 	const doc = view.state.doc;
 	try {
 		const first = doc.lineAt(view.posAtDOM(widget));
@@ -95,11 +116,45 @@ export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell
 			if (!isTableLine(line.text)) break;
 			if (!isDelimiterRow(line.text)) rows.push({ from: line.from, text: line.text });
 		}
-		return tableWidgetCells(widget, rows);
+		return rows;
 	} catch {
 		// posAtDOM throws for a widget CodeMirror no longer tracks.
 		return null;
 	}
+}
+
+/** The cells of one table widget of `view`, or null if it doesn't match the source or CodeMirror no longer tracks it. */
+export function widgetCells(view: EditorView, widget: HTMLElement): RenderedCell[] | null {
+	const rows = widgetRows(view, widget);
+	return rows && tableWidgetCells(widget, rows);
+}
+
+/** A cell editor open in one of a note editor's table widgets, with its cell's source range in the note. */
+export interface OpenCellEditor {
+	view: EditorView;
+	cell: CellRange;
+}
+
+/**
+ * The cell editor that `el` is in, if it is one nested in a table widget of the note editor `view`.
+ * Null if there is none, or if CodeMirror or the widget's structure doesn't let it be found.
+ */
+export function cellEditorAt(view: EditorView, el: Element): OpenCellEditor | null {
+	const dom = el.closest<HTMLElement>('.cm-editor');
+	const widget = dom?.parentElement && tableWidgetAt(dom.parentElement);
+	if (!dom || !widget || widget.closest('.cm-editor') !== view.dom) return null;
+	const cellView = typeof EditorView.findFromDOM === 'function' ? EditorView.findFromDOM(dom) : null;
+	const rows = widgetRows(view, widget);
+	const cell = rows && tableCellSource(dom, rows);
+	return cellView && cell ? { view: cellView, cell } : null;
+}
+
+/**
+ * Is `el` in the note editor `view` itself, or in a cell editor open in one of its tables? Another
+ * editor nested in it, such as an embed's, doesn't count.
+ */
+export function inNoteEditor(view: EditorView, el: Element): boolean {
+	return el.closest('.cm-editor') === view.dom || cellEditorAt(view, el) !== null;
 }
 
 /** The table widgets in a Live Preview editor, each with its cells, skipping any that don't match the source. */
@@ -125,6 +180,22 @@ const OWN_DRAG = `.cm-embed-block:not(${TABLE_WIDGET}), .markdown-embed, .intern
 /** Does a drag starting on `el` keep its own behaviour rather than annotate? */
 export function keepsOwnDrag(el: Element): boolean {
 	return el.closest(OWN_DRAG) !== null;
+}
+
+// Reading view draws the note's sections as children of the sizer, next to the inline title and
+// properties (.mod-header), the embedded backlinks (.mod-footer) and a spacer (the pusher).
+const NOT_NOTE_TEXT = '.markdown-preview-pusher, .mod-header, .mod-footer';
+
+/**
+ * Is `el` in the rendered note text of a Reading view, not its inline title, properties, footer or
+ * the space around them? False if Reading view isn't drawn as expected.
+ */
+export function inRenderedNoteText(el: Element): boolean {
+	for (let node: Element | null = el; node; node = node.parentElement) {
+		const parent = node.parentElement;
+		if (parent?.classList.contains('markdown-preview-sizer')) return !node.matches(NOT_NOTE_TEXT);
+	}
+	return false;
 }
 
 // ---------- Focus ----------
@@ -299,4 +370,67 @@ export function isExportRender(el: HTMLElement, ctx: { getSectionInfo(el: HTMLEl
 	if (ctx.getSectionInfo(el)) return false;
 	if ((ctx as { displayMode?: unknown }).displayMode === false) return false;
 	return !el.closest('.cm-editor');
+}
+
+// ---------- Commands, hotkeys and the Hotkeys tab ----------
+// None of this is in the typings. `app.commands.commands`, `app.hotkeyManager` (`getHotkeys`,
+// `getDefaultHotkeys`) and `app.setting` (`open`, `openTabById`, the Hotkeys tab's `setQuery`) are
+// the same in 1.7.4 and 1.14.5, and other plugins rely on them. The plugin only reads hotkeys.
+
+/** A command registered with Obsidian. */
+export interface RegisteredCommand {
+	id: string;
+	name: string;
+}
+
+/** Every command Obsidian has registered, or none if `app.commands` has changed shape. */
+export function registeredCommands(app: App): RegisteredCommand[] {
+	const commands = (app as unknown as { commands?: { commands?: unknown } }).commands?.commands;
+	if (typeof commands !== 'object' || commands === null) return [];
+	return Object.values(commands as Record<string, unknown>).filter(
+		(c): c is RegisteredCommand =>
+			typeof (c as RegisteredCommand | null)?.id === 'string' && typeof (c as RegisteredCommand).name === 'string',
+	);
+}
+
+interface HotkeyManager {
+	getHotkeys(id: string): Hotkey[] | undefined;
+	getDefaultHotkeys(id: string): Hotkey[] | undefined;
+}
+
+/** A command's hotkeys as stored: its custom hotkeys (undefined if none were ever set) and its defaults. */
+export interface StoredHotkeys {
+	custom: Hotkey[] | undefined;
+	defaults: Hotkey[] | undefined;
+}
+
+/**
+ * Reads a command's stored hotkeys. Undefined if `app.hotkeyManager` is missing or has changed, so
+ * callers show no hotkeys.
+ */
+export function hotkeyReader(app: App): ((id: string) => StoredHotkeys) | undefined {
+	const manager = (app as unknown as { hotkeyManager?: Partial<HotkeyManager> }).hotkeyManager;
+	if (typeof manager?.getHotkeys !== 'function' || typeof manager.getDefaultHotkeys !== 'function') return undefined;
+	const m = manager as HotkeyManager;
+	return (id) => ({ custom: m.getHotkeys(id), defaults: m.getDefaultHotkeys(id) });
+}
+
+interface SettingModal {
+	open(): void;
+	openTabById(id: string): unknown;
+}
+
+/**
+ * Opens Settings on Obsidian's Hotkeys tab with its search set to `query`. Undefined if
+ * `app.setting` is missing or has changed. If the tab has no `setQuery`, it opens unfiltered.
+ */
+export function hotkeysTabOpener(app: App): ((query: string) => void) | undefined {
+	const setting = (app as unknown as { setting?: Partial<SettingModal> }).setting;
+	if (typeof setting?.open !== 'function' || typeof setting.openTabById !== 'function') return undefined;
+	const s = setting as SettingModal;
+	return (query) => {
+		s.open();
+		const tab = s.openTabById('hotkeys') as { setQuery?: unknown } | null | undefined;
+		if (typeof tab?.setQuery === 'function') (tab as { setQuery(q: string): void }).setQuery(query);
+	};
 }

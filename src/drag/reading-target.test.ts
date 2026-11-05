@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { block, rangeOver } from '../test-support/fake-dom';
-import { readingTarget, type RenderedSection } from './reading-target';
+import type { RenderedSection } from '../reading-annotate/reading-range';
+import { readingTarget } from './reading-target';
 
 const TEXT = [
 	'# Notes', //                                       line 0
@@ -20,6 +21,15 @@ const TEXT = [
 	'| Doreth | fail |', //                             line 13
 	'', //                                              line 14
 	'Use `npm run` now.', //                            line 15
+	'', //                                              line 16
+	'Energy $E=mc^2$ holds.', //                        line 17
+	'', //                                              line 18
+	'> [!note] Callout title', //                       line 19
+	'> Callout body.', //                               line 20
+	'', //                                              line 21
+	'See the note[^1] here.', //                        line 22
+	'', //                                              line 23
+	'[^1]: The footnote text.', //                      line 24
 ].join('\n');
 
 /** Reading view's sections for TEXT, each with the lines `getSectionInfo` reports. */
@@ -39,6 +49,21 @@ function sections(): RenderedSection[] {
 			lineEnd: 13,
 		},
 		{ el: block('<p>Use <code>npm run</code> now.</p>'), lineStart: 15, lineEnd: 15 },
+		{ el: block('<p>Energy <span class="math math-inline"><mjx-container>E = m c 2</mjx-container></span> holds.</p>'), lineStart: 17, lineEnd: 17 },
+		{
+			el: block(
+				'<div class="callout" data-callout="note"><div class="callout-title"><div class="callout-title-icon"></div>' +
+					'<div class="callout-title-inner">Callout title</div></div><div class="callout-content"><p>Callout body.</p></div></div>',
+			),
+			lineStart: 19,
+			lineEnd: 20,
+		},
+		{ el: block('<p>See the note<sup class="footnote-ref"><a href="#fn-1">[1]</a></sup> here.</p>'), lineStart: 22, lineEnd: 22 },
+		{
+			el: block('<section class="footnotes"><hr><ol><li id="fn-1"><p>The footnote text. <a class="footnote-backref">↩︎</a></p></li></ol></section>'),
+			lineStart: 24,
+			lineEnd: 24,
+		},
 	];
 }
 
@@ -86,5 +111,52 @@ describe('readingTarget', () => {
 		const other = block('<p>Somewhere else</p>');
 		const r = readingTarget(TEXT, sections(), rangeOver(other, 'else'));
 		expect(r).toEqual({ message: 'the selection is not in the note text.' });
+	});
+
+	it('refuses what creating the Annotation would refuse', () => {
+		const all = sections();
+		expect(readingTarget(TEXT, all, rangeOver((all[3] as RenderedSection).el, 'x = 1'))).toEqual({
+			message: "an annotation can't start or end in code.",
+		});
+	});
+
+	describe('a selection in an area mapping skips', () => {
+		it('is outside the note when it lies entirely in the footnote list', () => {
+			const all = sections();
+			const r = readingTarget(TEXT, all, rangeOver((all[9] as RenderedSection).el, 'footnote text'));
+			expect(r).toEqual({ message: 'the selection is not in the note text.' });
+		});
+
+		it('is outside the note when it lies entirely in math', () => {
+			const all = sections();
+			const r = readingTarget(TEXT, all, rangeOver((all[6] as RenderedSection).el, 'm c'));
+			expect(r).toEqual({ message: 'the selection is not in the note text.' });
+		});
+
+		it('is clipped to the note text when it runs on into the footnote list', () => {
+			const all = sections();
+			const range = document.createRange();
+			const p = (all[8] as RenderedSection).el.querySelector('p')?.lastChild as Text;
+			const li = (all[9] as RenderedSection).el.querySelector('li p')?.firstChild as Text;
+			range.setStart(p, 1);
+			range.setEnd(li, 8);
+			const r = readingTarget(TEXT, all, range);
+			expect('message' in r ? r.message : TEXT.slice(r.from, r.to)).toBe('here.');
+		});
+
+		it('is clipped to the note text when it starts in math', () => {
+			const all = sections();
+			const math = (all[6] as RenderedSection).el.querySelector('mjx-container')?.firstChild as Text;
+			const after = (all[6] as RenderedSection).el.querySelector('p')?.lastChild as Text;
+			const range = document.createRange();
+			range.setStart(math, 2);
+			range.setEnd(after, 6);
+			const r = readingTarget(TEXT, all, range);
+			expect('message' in r ? r.message : TEXT.slice(r.from, r.to)).toBe('holds');
+		});
+	});
+
+	it('maps a selection in a callout title', () => {
+		expect(target(7, 'Callout title')).toBe('Callout title');
 	});
 });

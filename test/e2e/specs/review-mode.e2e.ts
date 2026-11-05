@@ -1,0 +1,615 @@
+import { $, $$, browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
+import { afterEach, beforeEach, describe, it } from 'mocha';
+import { obsidianPage } from 'wdio-obsidian-service';
+import { doubleClick, type Point, pointerDrag, resetVaultTo } from '../harness.ts';
+
+const NOTE = 'Review me.md';
+const TEXT = 'Some {text}[^r1] to review.\n\n[^r1]: One.\n';
+const ON = 'Review mode on: select text to annotate it.';
+const OFF = 'Review mode off';
+
+const indicator = () => $('.status-bar .rm-status-review-mode');
+const headerButton = () => $('.rm-sidebar-header .rm-review-mode-button');
+
+const isOn = () =>
+	browser.executeObsidian(({ plugins }) => (plugins.reviewMarks as unknown as { reviewMode: { on: boolean } }).reviewMode.on);
+
+const clearNotices = () => browser.execute(() => document.querySelectorAll('.notice').forEach((n) => n.remove()));
+
+/** Waits for a Notice reading exactly `text`. */
+const expectNotice = (text: string) =>
+	browser.waitUntil(async () => (await $$('.notice').map((n) => n.getText())).includes(text), {
+		timeoutMsg: `no "${text}" notice`,
+	});
+
+const setShowStatusBar = (shown: boolean) =>
+	browser.executeObsidian(
+		({ plugins }, shown) => (plugins.reviewMarks as unknown as { store: { update(p: object): Promise<void> } }).store.update({ showStatusBar: shown }),
+		shown,
+	);
+
+describe('Review Mode', () => {
+	beforeEach(async () => {
+		await resetVaultTo({ [NOTE]: TEXT });
+		await obsidianPage.openFile(NOTE);
+		await clearNotices();
+	});
+	afterEach(async () => {
+		await browser.executeObsidian(({ app, plugins }) => {
+			(plugins.reviewMarks as unknown as { reviewMode: { set(on: boolean): void } }).reviewMode.set(false);
+			app.workspace.detachLeavesOfType('review-marks-annotations');
+		});
+		await setShowStatusBar(true);
+		await clearNotices();
+	});
+
+	it('is off at launch, with the indicator hidden', async () => {
+		expect(await isOn()).toBe(false);
+		await expect(indicator()).not.toBeDisplayed();
+	});
+
+	it('turns on with the command, and the indicator turns it off', async () => {
+		await browser.executeObsidianCommand('review-marks:open-annotations-sidebar');
+		await expect(headerButton()).toBeDisplayed();
+		await expect(headerButton()).not.toHaveElementClass('is-active');
+
+		await browser.executeObsidianCommand('review-marks:toggle-review-mode');
+		await expectNotice(ON);
+		expect(await isOn()).toBe(true);
+		await expect(indicator()).toBeDisplayed();
+		await expect(indicator()).toHaveText('Review mode');
+		await expect(indicator()).toHaveAttribute('aria-label', 'Turn off review mode');
+		await expect(headerButton()).toHaveElementClass('is-active');
+		await expect(headerButton()).toHaveAttribute('aria-label', 'Turn off review mode');
+
+		// The indicator sits just left of the count.
+		const nextClass = await browser.execute(
+			() => document.querySelector('.status-bar .rm-status-review-mode')?.nextElementSibling?.className ?? '',
+		);
+		expect(nextClass).toContain('rm-status-count');
+
+		await clearNotices();
+		await indicator().click();
+		await expectNotice(OFF);
+		expect(await isOn()).toBe(false);
+		await expect(indicator()).not.toBeDisplayed();
+		await expect(headerButton()).not.toHaveElementClass('is-active');
+		await expect(headerButton()).toHaveAttribute('aria-label', 'Turn on review mode');
+	});
+
+	it('the sidebar header button toggles it', async () => {
+		await browser.executeObsidianCommand('review-marks:open-annotations-sidebar');
+		await headerButton().click();
+		await expectNotice(ON);
+		expect(await isOn()).toBe(true);
+		await expect(indicator()).toBeDisplayed();
+		await expect(headerButton()).toHaveElementClass('is-active');
+
+		await clearNotices();
+		await headerButton().click();
+		await expectNotice(OFF);
+		expect(await isOn()).toBe(false);
+		await expect(indicator()).not.toBeDisplayed();
+	});
+
+	it('keeps the indicator with the annotation count turned off', async () => {
+		await setShowStatusBar(false);
+		await browser.executeObsidianCommand('review-marks:toggle-review-mode');
+		await expect($('.status-bar .rm-status-count')).not.toBeDisplayed();
+		await expect(indicator()).toBeDisplayed();
+	});
+});
+
+// ---------- Annotating on release in Live Preview and Source mode ----------
+
+const EDIT_NOTE = 'Select me.md';
+const EDIT_TEXT = '# One\n\nKell fails the save and seizes in place.\n\nSome {text}[^r1] to review.\n\n[^r1]: One.\n';
+
+/** Opens the note in Live Preview (or Source mode) with the cursor at its start. */
+async function openEditor(source = false): Promise<void> {
+	await resetVaultTo({ [EDIT_NOTE]: EDIT_TEXT });
+	await obsidianPage.openFile(EDIT_NOTE);
+	await browser.executeObsidian(async ({ app, obsidian }, source) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (!view) throw new Error('no markdown view');
+		await view.setState({ ...view.getState(), mode: 'source', source }, { history: false });
+		view.editor.focus();
+		view.editor.setCursor({ line: 0, ch: 0 });
+	}, source);
+}
+
+const setReviewMode = (on: boolean) =>
+	browser.executeObsidian(
+		({ plugins }, on) => (plugins.reviewMarks as unknown as { reviewMode: { set(on: boolean): void } }).reviewMode.set(on),
+		on,
+	);
+
+/** Screen points just inside the first and last characters of `target`, and between them. */
+async function endsOf(target: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const ends = await browser.executeObsidian(({ app, obsidian }, target) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		type Rect = { left: number; right: number; top: number; bottom: number };
+		const cm = (view?.editor as unknown as { cm?: { coordsAtPos(pos: number, side: number): Rect | null } }).cm;
+		const from = view?.editor.getValue().indexOf(target) ?? -1;
+		const a = from < 0 ? null : cm?.coordsAtPos(from, 1);
+		const b = from < 0 ? null : cm?.coordsAtPos(from + target.length, -1);
+		if (!a || !b) return null;
+		const y = Math.round((a.top + a.bottom) / 2);
+		return {
+			start: { x: Math.round(a.left + 2), y },
+			end: { x: Math.round(b.left - 2), y },
+			middle: { x: Math.round((a.left + b.left) / 2), y },
+		};
+	}, target);
+	if (!ends) throw new Error(`"${target}" is not on screen`);
+	return ends;
+}
+
+const editorText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getValue() ?? '');
+const cursorOffset = () =>
+	browser.executeObsidian(({ app }) => {
+		const editor = app.workspace.activeEditor?.editor;
+		return editor ? editor.posToOffset(editor.getCursor('head')) : -1;
+	});
+const selectedText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getSelection() ?? '');
+
+/** Types `comment` into the open box, saves with Enter and checks the note's text. */
+async function saveComment(comment: string, expected: string): Promise<void> {
+	const input = $('.rm-cbox-input');
+	await expect(input).toBeFocused();
+	await input.setValue(comment);
+	await browser.keys('Enter');
+	await expect($('.rm-cbox')).not.toExist();
+	expect(await editorText()).toBe(expected);
+}
+
+/** The note with `target` (above [^r1]'s) annotated as [^r2] and `comment` as its Comment. */
+const annotated = (target: string, comment: string) =>
+	EDIT_TEXT.replace(target, `{${target}}[^r2]`).replace('[^r1]: One.\n', `[^r2]: ${comment}\n[^r1]: One.\n`);
+
+describe('Review Mode: annotating in the editor', () => {
+	beforeEach(async () => {
+		await openEditor();
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	afterEach(async () => {
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('opens the comment box on a drag in Live Preview', async () => {
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await saveComment('Dragged.', annotated('the save', 'Dragged.'));
+	});
+
+	it('opens the comment box on a drag in Source mode', async () => {
+		await openEditor(true);
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await saveComment('In source.', annotated('the save', 'In source.'));
+	});
+
+	it('opens the comment box on a double-clicked word', async () => {
+		const { middle } = await endsOf('seizes');
+		await doubleClick(middle);
+		await saveComment('One word.', annotated('seizes', 'One word.'));
+	});
+
+	it('moves the cursor on a click with no selection, and opens no box', async () => {
+		const { middle } = await endsOf('seizes');
+		await pointerDrag(middle, middle);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		const at = await cursorOffset();
+		expect(at).toBeGreaterThan(EDIT_TEXT.indexOf('seizes'));
+		expect(at).toBeLessThan(EDIT_TEXT.indexOf('seizes') + 'seizes'.length);
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('ignores a keyboard selection', async () => {
+		const { start } = await endsOf('the save');
+		await pointerDrag(start, start);
+		await browser.keys([Key.Shift, Key.ArrowRight, Key.ArrowRight, Key.ArrowRight]);
+		await browser.keys(Key.Shift);
+		expect(await selectedText()).toBe('the');
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('shows the Annotate selection notice for a range it refuses', async () => {
+		// From "Some" into the Target of [^r1]: it would overlap the Annotation. In Source mode, so
+		// no syntax is revealed under the pointer mid-drag.
+		await openEditor(true);
+		const { start } = await endsOf('Some');
+		const { middle } = await endsOf('ex');
+		await pointerDrag(start, middle);
+		await expect($('.notice*=the selection overlaps annotation [^r1].')).toExist();
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('ignores a selection made while a comment box is open', async () => {
+		const first = await endsOf('the save');
+		await pointerDrag(first.start, first.end);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		await $('.rm-cbox-input').setValue('First.');
+
+		// Pressing outside the box saves it; the selection that follows starts nothing.
+		const second = await endsOf('in place');
+		await pointerDrag(second.start, second.end);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(annotated('the save', 'First.'));
+	});
+
+	it('keeps the drag trigger working', async () => {
+		await browser.executeObsidian(({ plugins }) => {
+			(plugins.reviewMarks as unknown as { settings: { dragTrigger: string } }).settings.dragTrigger = 'alt';
+		});
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end, { key: Key.Alt });
+		await saveComment('Triggered.', annotated('the save', 'Triggered.'));
+	});
+
+	it('does nothing on release while Review Mode is off', async () => {
+		await setReviewMode(false);
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await selectedText()).toBe('the save');
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+});
+
+// ---------- Annotating on release in Reading view ----------
+
+const READ_NOTE = 'Read me.md';
+const READ_TEXT = [
+	'# Reading',
+	'',
+	'Kell fails the save and seizes in place.',
+	'',
+	'![[Embedded]]',
+	'',
+	'Run `npm test` now.',
+	'',
+	'Some {text}[^r1] to review.',
+	'',
+	'[^r1]: One footnote.',
+	'',
+].join('\n');
+
+/** Opens the note in Reading view, with its embed and footnote list rendered. */
+async function openReading(): Promise<void> {
+	await resetVaultTo({ [READ_NOTE]: READ_TEXT, 'Embedded.md': 'Embedded words to select.\n' });
+	await obsidianPage.openFile(READ_NOTE);
+	await browser.executeObsidian(async ({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (!view) throw new Error('no markdown view');
+		await view.setState({ ...view.getState(), mode: 'preview' }, { history: false });
+	});
+	await browser.waitUntil(
+		async () => (await $$('.markdown-reading-view .internal-embed').map((e) => e.getText())).some((t) => t.includes('Embedded words')),
+		{ timeoutMsg: 'the embed is not rendered' },
+	);
+	await $('.markdown-reading-view .footnotes').waitForExist();
+}
+
+/**
+ * Screen points in Reading view: just inside the first and last characters of `needle` (its first
+ * match, in one text node), and its middle.
+ */
+async function readingPoints(needle: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const points = await browser.executeObsidian(({ app, obsidian }, needle) => {
+		const root = app.workspace.getActiveViewOfType(obsidian.MarkdownView)?.previewMode.containerEl;
+		if (!root) return null;
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			const i = (n as Text).data.indexOf(needle);
+			if (i < 0) continue;
+			const rect = (at: number) => {
+				const r = document.createRange();
+				r.setStart(n, at);
+				r.setEnd(n, at + 1);
+				return r.getBoundingClientRect();
+			};
+			const a = rect(i);
+			const b = rect(i + needle.length - 1);
+			const y = Math.round((a.top + a.bottom) / 2);
+			return {
+				start: { x: Math.round(a.left + 1), y },
+				end: { x: Math.round(b.right - 1), y },
+				middle: { x: Math.round((a.left + b.right) / 2), y },
+			};
+		}
+		return null;
+	}, needle);
+	if (!points) throw new Error(`"${needle}" is not rendered`);
+	return points;
+}
+
+/** The note's mode: 'preview' for Reading view, 'live' for Live Preview, 'source' for Source mode. */
+const noteMode = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (view?.getMode() === 'preview') return 'preview';
+		return view?.getState().source === false ? 'live' : 'source';
+	});
+
+/** READ_TEXT with `target` (above [^r1]'s) annotated as [^r2] and `comment` as its Comment. */
+const readAnnotated = (target: string, comment: string) =>
+	READ_TEXT.replace(target, `{${target}}[^r2]`).replace('[^r1]: One footnote.\n', `[^r2]: ${comment}\n[^r1]: One footnote.\n`);
+
+/**
+ * Checks a release left the note alone: still in Reading view, no box, no notice, text unchanged.
+ * It waits a fixed time: there is nothing to wait for when nothing should happen.
+ */
+async function expectIgnored(text = READ_TEXT): Promise<void> {
+	await browser.pause(300);
+	expect(await noteMode()).toBe('preview');
+	await expect($('.rm-cbox')).not.toExist();
+	expect(await $$('.notice').length).toBe(0);
+	expect(await obsidianPage.read(READ_NOTE)).toBe(text);
+}
+
+/** Screen points in the popout window's Reading view, like readingPoints; null until it is rendered. */
+const popoutPoints = (needle: string) =>
+	browser.executeObsidian(({ app, obsidian }, needle) => {
+		const leaf = app.workspace.getLeavesOfType('markdown').find((l) => l.view.containerEl.ownerDocument !== document);
+		const view = leaf?.view instanceof obsidian.MarkdownView ? leaf.view : null;
+		if (!view || view.getMode() !== 'preview') return null;
+		const doc = view.containerEl.ownerDocument;
+		const walker = doc.createTreeWalker(view.previewMode.containerEl, NodeFilter.SHOW_TEXT);
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			const i = (n as Text).data.indexOf(needle);
+			if (i < 0) continue;
+			const rect = (at: number) => {
+				const r = doc.createRange();
+				r.setStart(n, at);
+				r.setEnd(n, at + 1);
+				return r.getBoundingClientRect();
+			};
+			const a = rect(i);
+			const b = rect(i + needle.length - 1);
+			if (a.width === 0) return null;
+			const y = Math.round((a.top + a.bottom) / 2);
+			return { start: { x: Math.round(a.left + 1), y }, end: { x: Math.round(b.right - 1), y } };
+		}
+		return null;
+	}, needle);
+
+/** The popout window's note: its mode, and whether a comment box is open in it. */
+const popoutState = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const leaf = app.workspace.getLeavesOfType('markdown').find((l) => l.view.containerEl.ownerDocument !== document);
+		const view = leaf?.view instanceof obsidian.MarkdownView ? leaf.view : null;
+		return {
+			mode: view?.getMode() === 'preview' ? 'preview' : 'live',
+			box: view?.containerEl.ownerDocument.querySelector('.rm-cbox') != null,
+		};
+	});
+
+/**
+ * Opens the Reading view note in a popout window, drags over "the save" there (holding `key` if
+ * given) and checks the comment box opens in the popout, in Live Preview. Cancels the box and
+ * closes the popout afterwards.
+ */
+async function expectPopoutAnnotates(key?: string): Promise<void> {
+	const main = await browser.getWindowHandle();
+	const before = await browser.getWindowHandles();
+	await browser.executeObsidian(async ({ app, obsidian }, path) => {
+		const file = app.vault.getFileByPath(path);
+		if (!file) throw new Error('no note');
+		const leaf = app.workspace.openPopoutLeaf();
+		await leaf.openFile(file, { state: { mode: 'preview' } });
+		if (!(leaf.view instanceof obsidian.MarkdownView)) throw new Error('no markdown view');
+		app.workspace.setActiveLeaf(leaf, { focus: true });
+	}, READ_NOTE);
+	await browser.waitUntil(async () => (await browser.getWindowHandles()).length > before.length, { timeoutMsg: 'no popout' });
+	const popout = (await browser.getWindowHandles()).find((h) => !before.includes(h)) as string;
+	try {
+		await browser.waitUntil(async () => (await popoutPoints('the save')) !== null, { timeoutMsg: 'the popout note is not rendered' });
+		const points = (await popoutPoints('the save')) as { start: Point; end: Point };
+		await browser.switchToWindow(popout);
+		await pointerDrag(points.start, points.end, { key });
+		await browser.switchToWindow(main);
+		await browser.waitUntil(async () => (await popoutState()).box, { timeoutMsg: 'no comment box in the popout' });
+		expect((await popoutState()).mode).toBe('live');
+		await browser.switchToWindow(popout);
+		await browser.keys('Escape');
+		await browser.switchToWindow(main);
+		await browser.waitUntil(async () => !(await popoutState()).box, { timeoutMsg: 'the comment box stayed open' });
+	} finally {
+		await browser.switchToWindow(main);
+		await browser.executeObsidian(({ app }) => {
+			app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+				if (leaf.view.containerEl.ownerDocument !== document) leaf.detach();
+			});
+		});
+	}
+}
+
+describe('Review Mode: annotating in Reading view', () => {
+	beforeEach(async () => {
+		await openReading();
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	// Before the harness closes the note: a comment box left open would cover the next test's note.
+	afterEach(async () => {
+		if (await $('.rm-cbox').isExisting()) {
+			await browser.keys('Escape');
+			await $('.rm-cbox').waitForExist({ reverse: true });
+		}
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('switches to Live Preview on a selection and opens the comment box there', async () => {
+		const { start, end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		expect(await noteMode()).toBe('live');
+
+		await saveComment('Read and marked.', readAnnotated('the save', 'Read and marked.'));
+		// The note stays in Live Preview.
+		expect(await noteMode()).toBe('live');
+	});
+
+	it('opens the comment box on a double-clicked word', async () => {
+		const { middle } = await readingPoints('seizes');
+		await doubleClick(middle);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		expect(await noteMode()).toBe('live');
+		await saveComment('One word.', readAnnotated('seizes', 'One word.'));
+	});
+
+	it('ignores a selection in the footnote list', async () => {
+		const { start, end } = await readingPoints('One footnote');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on an embed', async () => {
+		const { start, end } = await readingPoints('Embedded words');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on the inline title', async () => {
+		const { start } = await readingPoints('Read me');
+		const { end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on the properties', async () => {
+		const text = `---\ntags: draft\n---\n${READ_TEXT}`;
+		await resetVaultTo({ [READ_NOTE]: text, 'Embedded.md': 'Embedded words to select.\n' });
+		await browser.waitUntil(async () => (await readingPoints('Properties').catch(() => null)) !== null, {
+			timeoutMsg: 'the properties are not rendered',
+		});
+		const { start } = await readingPoints('Properties');
+		const { end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await expectIgnored(text);
+	});
+
+	it('annotates in Reading view in a popout window', async () => {
+		await expectPopoutAnnotates();
+	});
+
+	it('annotates on drag with the trigger in Reading view in a popout window', async () => {
+		await setReviewMode(false);
+		await browser.executeObsidian(({ plugins }) => {
+			(plugins.reviewMarks as unknown as { settings: { dragTrigger: string } }).settings.dragTrigger = 'alt';
+		});
+		await expectPopoutAnnotates(Key.Alt);
+	});
+
+	it('refuses a selection inside code with a notice and stays in Reading view', async () => {
+		const { start, end } = await readingPoints('npm test');
+		await pointerDrag(start, end);
+		await expectNotice("Review Marks: an annotation can't start or end in code.");
+		expect(await noteMode()).toBe('preview');
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await obsidianPage.read(READ_NOTE)).toBe(READ_TEXT);
+	});
+});
+
+// ---------- Annotating on release in a Live Preview table cell ----------
+
+const TABLE_NOTE = 'Table.md';
+// Padded as Obsidian pads a table when a cell editor opens, so the note's text stays comparable.
+const TABLE =
+	'# Table\n\nIntro line.\n\n| Name        | Result          |\n| ----------- | --------------- |\n| Doreth Kell | failed the save |\n\nAfter.\n';
+const undo = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.undo());
+
+/** Screen points just inside the first character of `first` and the last of `last`, in the table's cell editor if one is open, else in the rendered table. */
+async function cellPoints(first: string, last: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const points = await browser.executeObsidian(
+		({ app, obsidian }, first, last) => {
+			const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+			const widget = view?.contentEl.querySelector('.cm-table-widget');
+			const root = widget?.querySelector('.cm-editor .cm-content') ?? widget;
+			if (!root) return null;
+			const rectOf = (needle: string, atEnd: boolean) => {
+				const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+				for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+					const i = (n as Text).data.indexOf(needle);
+					if (i < 0) continue;
+					const r = document.createRange();
+					const at = atEnd ? i + needle.length - 1 : i;
+					r.setStart(n, at);
+					r.setEnd(n, at + 1);
+					return r.getBoundingClientRect();
+				}
+				return null;
+			};
+			const a = rectOf(first, false);
+			const b = rectOf(last, true);
+			if (!a || !b || a.width === 0) return null;
+			const y = Math.round((a.top + a.bottom) / 2);
+			return {
+				start: { x: Math.round(a.left + 1), y },
+				end: { x: Math.round(b.right - 1), y },
+				middle: { x: Math.round((a.left + b.right) / 2), y },
+			};
+		},
+		first,
+		last,
+	);
+	if (!points) throw new Error(`"${first}" or "${last}" is not in the table`);
+	return points;
+}
+
+const cellEditorText = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		return view?.contentEl.querySelector('.cm-table-widget .cm-editor .cm-content')?.textContent ?? null;
+	});
+
+describe('Review Mode: annotating in a Live Preview table cell', () => {
+	beforeEach(async () => {
+		await resetVaultTo({ [TABLE_NOTE]: TABLE });
+		await obsidianPage.openFile(TABLE_NOTE);
+		await browser.executeObsidian(async ({ app, obsidian }) => {
+			const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+			if (!view) throw new Error('no markdown view');
+			await view.setState({ ...view.getState(), mode: 'source', source: false }, { history: false });
+			view.editor.focus();
+			view.editor.setCursor({ line: 0, ch: 0 });
+		});
+		await browser.waitUntil(async () => (await cellPoints('failed', 'save').catch(() => null)) !== null, {
+			timeoutMsg: 'no table widget',
+		});
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	afterEach(async () => {
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('opens the comment box on a drag inside a cell and writes the Annotation into the note', async () => {
+		const { start, end } = await cellPoints('failed', 'save');
+		await pointerDrag(start, end);
+		await saveComment('In a cell.', TABLE.replace('failed the save', '{failed the save}[^r1]') + '\n[^r1]: In a cell.\n');
+		// Written in the note's editor, as one step of its history.
+		await undo();
+		expect(await editorText()).toBe(TABLE);
+	});
+
+	it('opens the comment box on a double-clicked word in a cell', async () => {
+		const { middle } = await cellPoints('save', 'save');
+		await doubleClick(middle);
+		await saveComment('One word.', TABLE.replace('the save', 'the {save}[^r1]') + '\n[^r1]: One word.\n');
+		// The cell editor stays open and shows the cell's text from the note.
+		expect(await cellEditorText()).toBe('failed the {save}[^r1]');
+	});
+});
