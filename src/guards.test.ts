@@ -2,7 +2,7 @@
 import type { MarkdownPreviewView } from 'obsidian';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StateEffect } from '@codemirror/state';
-import { caretFromPoint, focusChangeTracking, isExportRender, isTableWidgetChrome, keepsOwnDrag, scrollPreviewTo, tableWidgetAt, tableWidgetCells } from './guards';
+import { caretFromPoint, focusChangeTracking, isExportRender, isTableWidgetChrome, keepsOwnDrag, scrollPreviewTo, tableCellSource, tableWidgetAt, tableWidgetCells } from './guards';
 import { block } from './test-support/fake-dom';
 
 const TEXT = 'Intro.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | {17 (fail)}[^r9] |\n';
@@ -54,6 +54,36 @@ describe('tableWidgetCells', () => {
 
 	it('fails when there is no table in the widget', () => {
 		expect(tableWidgetCells(block('<div class="cm-table-widget"></div>'), rows)).toBeNull();
+	});
+});
+
+describe('tableCellSource', () => {
+	const editor = '<div class="table-cell-wrapper"><div class="cm-editor" id="ed"></div></div>';
+	const editorIn = (w: HTMLElement) => w.querySelector('#ed') as Element;
+
+	it('gives the source range of the cell a cell editor is open in', () => {
+		const w = widget(`<tr>${cell('td', 'Doreth Kell')}<td><div class="table-cell-wrapper">{17 (fail)}r9</div>${editor}</td></tr>`);
+		const range = tableCellSource(editorIn(w), rows);
+		expect(range && TEXT.slice(range.from, range.to)).toBe('{17 (fail)}[^r9]');
+	});
+
+	it('finds a cell editor in a header cell', () => {
+		const w = block(
+			'<div class="cm-table-widget"><table>' +
+				`<thead><tr><th>${editor}</th>${cell('th', 'Result')}</tr></thead>` +
+				`<tbody><tr>${cell('td', 'Doreth Kell')}${cell('td', '{17 (fail)}r9')}</tr></tbody></table></div>`,
+		);
+		const range = tableCellSource(editorIn(w), rows);
+		expect(range && TEXT.slice(range.from, range.to)).toBe('Name');
+	});
+
+	it('fails when the rows do not match the source', () => {
+		const w = widget(`<tr>${cell('td', 'Doreth Kell')}<td>${editor}</td></tr>`);
+		expect(tableCellSource(editorIn(w), rows.slice(0, 1))).toBeNull();
+	});
+
+	it('fails when the editor is not in a table cell', () => {
+		expect(tableCellSource(editorIn(block(`<div class="cm-table-widget">${editor}</div>`)), rows)).toBeNull();
 	});
 });
 

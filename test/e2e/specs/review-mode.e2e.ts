@@ -265,3 +265,95 @@ describe('Review Mode: annotating in the editor', () => {
 		expect(await editorText()).toBe(EDIT_TEXT);
 	});
 });
+
+// ---------- Annotating on release in a Live Preview table cell ----------
+
+const TABLE_NOTE = 'Table.md';
+// Padded as Obsidian pads a table when a cell editor opens, so the note's text stays comparable.
+const TABLE =
+	'# Table\n\nIntro line.\n\n| Name        | Result          |\n| ----------- | --------------- |\n| Doreth Kell | failed the save |\n\nAfter.\n';
+const undo = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.undo());
+
+/** Screen points just inside the first character of `first` and the last of `last`, in the table's cell editor if one is open, else in the rendered table. */
+async function cellPoints(first: string, last: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const points = await browser.executeObsidian(
+		({ app, obsidian }, first, last) => {
+			const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+			const widget = view?.contentEl.querySelector('.cm-table-widget');
+			const root = widget?.querySelector('.cm-editor .cm-content') ?? widget;
+			if (!root) return null;
+			const rectOf = (needle: string, atEnd: boolean) => {
+				const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+				for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+					const i = (n as Text).data.indexOf(needle);
+					if (i < 0) continue;
+					const r = document.createRange();
+					const at = atEnd ? i + needle.length - 1 : i;
+					r.setStart(n, at);
+					r.setEnd(n, at + 1);
+					return r.getBoundingClientRect();
+				}
+				return null;
+			};
+			const a = rectOf(first, false);
+			const b = rectOf(last, true);
+			if (!a || !b || a.width === 0) return null;
+			const y = Math.round((a.top + a.bottom) / 2);
+			return {
+				start: { x: Math.round(a.left + 1), y },
+				end: { x: Math.round(b.right - 1), y },
+				middle: { x: Math.round((a.left + b.right) / 2), y },
+			};
+		},
+		first,
+		last,
+	);
+	if (!points) throw new Error(`"${first}" or "${last}" is not in the table`);
+	return points;
+}
+
+const cellEditorText = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		return view?.contentEl.querySelector('.cm-table-widget .cm-editor .cm-content')?.textContent ?? null;
+	});
+
+describe('Review Mode: annotating in a Live Preview table cell', () => {
+	beforeEach(async () => {
+		await resetVaultTo({ [TABLE_NOTE]: TABLE });
+		await obsidianPage.openFile(TABLE_NOTE);
+		await browser.executeObsidian(async ({ app, obsidian }) => {
+			const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+			if (!view) throw new Error('no markdown view');
+			await view.setState({ ...view.getState(), mode: 'source', source: false }, { history: false });
+			view.editor.focus();
+			view.editor.setCursor({ line: 0, ch: 0 });
+		});
+		await browser.waitUntil(async () => (await cellPoints('failed', 'save').catch(() => null)) !== null, {
+			timeoutMsg: 'no table widget',
+		});
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	afterEach(async () => {
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('opens the comment box on a drag inside a cell and writes the Annotation into the note', async () => {
+		const { start, end } = await cellPoints('failed', 'save');
+		await pointerDrag(start, end);
+		await saveComment('In a cell.', TABLE.replace('failed the save', '{failed the save}[^r1]') + '\n[^r1]: In a cell.\n');
+		// Written in the note's editor, as one step of its history.
+		await undo();
+		expect(await editorText()).toBe(TABLE);
+	});
+
+	it('opens the comment box on a double-clicked word in a cell', async () => {
+		const { middle } = await cellPoints('save', 'save');
+		await doubleClick(middle);
+		await saveComment('One word.', TABLE.replace('the save', 'the {save}[^r1]') + '\n[^r1]: One word.\n');
+		// The cell editor stays open and shows the cell's text from the note.
+		expect(await cellEditorText()).toBe('failed the {save}[^r1]');
+	});
+});
