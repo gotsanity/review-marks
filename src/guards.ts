@@ -1,5 +1,5 @@
 // Every fragile or version-dependent API the plugin touches, each with its fallback.
-import type { Editor, MarkdownPreviewView, MarkdownView } from 'obsidian';
+import type { App, Editor, Hotkey, MarkdownPreviewView, MarkdownView } from 'obsidian';
 import type { ChangeDesc, EditorState, Extension, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isDelimiterRow, isTableLine, lineOfOffset, lineStarts, normalizeLineEndings, tableCells, type CellRange } from './core';
@@ -299,4 +299,61 @@ export function isExportRender(el: HTMLElement, ctx: { getSectionInfo(el: HTMLEl
 	if (ctx.getSectionInfo(el)) return false;
 	if ((ctx as { displayMode?: unknown }).displayMode === false) return false;
 	return !el.closest('.cm-editor');
+}
+
+// ---------- Commands, hotkeys and the Hotkeys tab ----------
+// None of this is in the typings. `app.commands.commands`, `app.hotkeyManager` (`getHotkeys`,
+// `getDefaultHotkeys`) and `app.setting` (`open`, `openTabById`, the Hotkeys tab's `setQuery`) are
+// the same in 1.7.4 and 1.14.5, and other plugins rely on them. The plugin only reads hotkeys.
+
+/** A command registered with Obsidian. */
+export interface RegisteredCommand {
+	id: string;
+	name: string;
+}
+
+/** Every command Obsidian has registered, or none if `app.commands` has changed shape. */
+export function registeredCommands(app: App): RegisteredCommand[] {
+	const commands = (app as unknown as { commands?: { commands?: unknown } }).commands?.commands;
+	if (typeof commands !== 'object' || commands === null) return [];
+	return Object.values(commands as Record<string, unknown>).filter(
+		(c): c is RegisteredCommand =>
+			typeof (c as RegisteredCommand | null)?.id === 'string' && typeof (c as RegisteredCommand).name === 'string',
+	);
+}
+
+interface HotkeyManager {
+	getHotkeys(id: string): Hotkey[] | undefined;
+	getDefaultHotkeys(id: string): Hotkey[] | undefined;
+}
+
+/**
+ * Reads a command's effective hotkeys: the user's if they set any (even none), else its defaults.
+ * Undefined if `app.hotkeyManager` is missing or has changed, so callers show no hotkeys.
+ */
+export function hotkeyReader(app: App): ((id: string) => Hotkey[]) | undefined {
+	const manager = (app as unknown as { hotkeyManager?: Partial<HotkeyManager> }).hotkeyManager;
+	if (typeof manager?.getHotkeys !== 'function' || typeof manager.getDefaultHotkeys !== 'function') return undefined;
+	const m = manager as HotkeyManager;
+	return (id) => m.getHotkeys(id) ?? m.getDefaultHotkeys(id) ?? [];
+}
+
+interface SettingModal {
+	open(): void;
+	openTabById(id: string): unknown;
+}
+
+/**
+ * Opens Settings on Obsidian's Hotkeys tab with its search set to `query`. Undefined if
+ * `app.setting` is missing or has changed. If the tab has no `setQuery`, it opens unfiltered.
+ */
+export function hotkeysTabOpener(app: App): ((query: string) => void) | undefined {
+	const setting = (app as unknown as { setting?: Partial<SettingModal> }).setting;
+	if (typeof setting?.open !== 'function' || typeof setting.openTabById !== 'function') return undefined;
+	const s = setting as SettingModal;
+	return (query) => {
+		s.open();
+		const tab = s.openTabById('hotkeys') as { setQuery?: unknown } | null | undefined;
+		if (typeof tab?.setQuery === 'function') (tab as { setQuery(q: string): void }).setQuery(query);
+	};
 }
