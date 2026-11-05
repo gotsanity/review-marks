@@ -289,6 +289,11 @@ body {
 	gap: var(--size-2-2);
 }
 
+/* A hotkey in the Hotkeys section that another command also uses. */
+.setting-hotkey.rm-hotkey-conflict {
+	color: var(--text-error);
+}
+
 /* ---------- Drag trigger recorder (src/drag/setting.ts) ---------- */
 
 .review-marks-trigger-field {

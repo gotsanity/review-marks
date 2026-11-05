@@ -1,8 +1,10 @@
 // The Hotkeys section of the settings tab: every Review Marks command with its current hotkeys,
-// read-only. Recording happens in Obsidian's own Hotkeys tab.
+// read-only, with hotkeys other commands also use in red. Recording happens in Obsidian's own
+// Hotkeys tab.
 import { Setting, type App } from 'obsidian';
 import { hotkeyReader, hotkeysTabOpener, registeredCommands } from '../guards';
 import type { SettingsSection } from '../settings-tab/settings-tab';
+import { conflictCheck, effectiveHotkeys } from './conflicts';
 import { printHotkey } from './printer';
 
 /** What the section needs from the plugin. */
@@ -18,9 +20,13 @@ export function hotkeysSettings(plugin: HotkeysPlugin, isMac: boolean): Settings
 		const openTab = hotkeysTabOpener(app);
 		if (!openTab) return;
 		const openHotkeys = () => openTab(manifest.name);
-		const hotkeysOf = hotkeyReader(app);
+		const readHotkeys = hotkeyReader(app);
 		const prefix = `${manifest.id}:`;
-		const commands = registeredCommands(app)
+		const registered = registeredCommands(app);
+		const alsoUsedBy = readHotkeys
+			? conflictCheck(registered.map((c) => ({ id: c.id, name: c.name, ...readHotkeys(c.id) })), isMac)
+			: () => [];
+		const commands = registered
 			.filter((c) => c.id.startsWith(prefix))
 			.map((c) => ({ id: c.id, name: c.name.replace(`${manifest.name}: `, '') }))
 			.sort((a, b) => a.name.localeCompare(b.name));
@@ -36,9 +42,19 @@ export function hotkeysSettings(plugin: HotkeysPlugin, isMac: boolean): Settings
 				button.setIcon('settings').setTooltip('Change in Hotkeys settings').onClick(openHotkeys),
 			);
 			const chips = row.controlEl.createDiv({ cls: 'setting-command-hotkeys' });
-			if (!hotkeysOf) continue;
-			const hotkeys = hotkeysOf(command.id);
-			for (const hotkey of hotkeys) chips.createSpan({ cls: 'setting-hotkey', text: printHotkey(hotkey, isMac) });
+			if (!readHotkeys) continue;
+			const hotkeys = effectiveHotkeys(readHotkeys(command.id));
+			for (const hotkey of hotkeys) {
+				const text = printHotkey(hotkey, isMac);
+				const others = alsoUsedBy(command.id, hotkey);
+				if (others.length === 0) chips.createSpan({ cls: 'setting-hotkey', text });
+				else
+					chips.createSpan({
+						cls: 'setting-hotkey rm-hotkey-conflict',
+						text,
+						attr: { 'aria-label': `Also used by ${others.join(', ')}` },
+					});
+			}
 			if (hotkeys.length === 0) chips.createSpan({ cls: 'setting-hotkey mod-empty', text: 'Blank' });
 		}
 	};

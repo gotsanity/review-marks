@@ -1,7 +1,8 @@
 import { $, $$, browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { resetVaultTo } from '../harness.ts';
+import { doubleClick, type Point, pointerDrag, resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Review me.md';
 const TEXT = 'Some {text}[^r1] to review.\n\n[^r1]: One.\n';
@@ -97,5 +98,170 @@ describe('Review Mode', () => {
 		await browser.executeObsidianCommand('review-marks:toggle-review-mode');
 		await expect($('.status-bar .rm-status-count')).not.toBeDisplayed();
 		await expect(indicator()).toBeDisplayed();
+	});
+});
+
+// ---------- Annotating on release in Live Preview and Source mode ----------
+
+const EDIT_NOTE = 'Select me.md';
+const EDIT_TEXT = '# One\n\nKell fails the save and seizes in place.\n\nSome {text}[^r1] to review.\n\n[^r1]: One.\n';
+
+/** Opens the note in Live Preview (or Source mode) with the cursor at its start. */
+async function openEditor(source = false): Promise<void> {
+	await resetVaultTo({ [EDIT_NOTE]: EDIT_TEXT });
+	await obsidianPage.openFile(EDIT_NOTE);
+	await browser.executeObsidian(async ({ app, obsidian }, source) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (!view) throw new Error('no markdown view');
+		await view.setState({ ...view.getState(), mode: 'source', source }, { history: false });
+		view.editor.focus();
+		view.editor.setCursor({ line: 0, ch: 0 });
+	}, source);
+}
+
+const setReviewMode = (on: boolean) =>
+	browser.executeObsidian(
+		({ plugins }, on) => (plugins.reviewMarks as unknown as { reviewMode: { set(on: boolean): void } }).reviewMode.set(on),
+		on,
+	);
+
+/** Screen points just inside the first and last characters of `target`, and between them. */
+async function endsOf(target: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const ends = await browser.executeObsidian(({ app, obsidian }, target) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		type Rect = { left: number; right: number; top: number; bottom: number };
+		const cm = (view?.editor as unknown as { cm?: { coordsAtPos(pos: number, side: number): Rect | null } }).cm;
+		const from = view?.editor.getValue().indexOf(target) ?? -1;
+		const a = from < 0 ? null : cm?.coordsAtPos(from, 1);
+		const b = from < 0 ? null : cm?.coordsAtPos(from + target.length, -1);
+		if (!a || !b) return null;
+		const y = Math.round((a.top + a.bottom) / 2);
+		return {
+			start: { x: Math.round(a.left + 2), y },
+			end: { x: Math.round(b.left - 2), y },
+			middle: { x: Math.round((a.left + b.left) / 2), y },
+		};
+	}, target);
+	if (!ends) throw new Error(`"${target}" is not on screen`);
+	return ends;
+}
+
+const editorText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getValue() ?? '');
+const cursorOffset = () =>
+	browser.executeObsidian(({ app }) => {
+		const editor = app.workspace.activeEditor?.editor;
+		return editor ? editor.posToOffset(editor.getCursor('head')) : -1;
+	});
+const selectedText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getSelection() ?? '');
+
+/** Types `comment` into the open box, saves with Enter and checks the note's text. */
+async function saveComment(comment: string, expected: string): Promise<void> {
+	const input = $('.rm-cbox-input');
+	await expect(input).toBeFocused();
+	await input.setValue(comment);
+	await browser.keys('Enter');
+	await expect($('.rm-cbox')).not.toExist();
+	expect(await editorText()).toBe(expected);
+}
+
+/** The note with `target` (above [^r1]'s) annotated as [^r2] and `comment` as its Comment. */
+const annotated = (target: string, comment: string) =>
+	EDIT_TEXT.replace(target, `{${target}}[^r2]`).replace('[^r1]: One.\n', `[^r2]: ${comment}\n[^r1]: One.\n`);
+
+describe('Review Mode: annotating in the editor', () => {
+	beforeEach(async () => {
+		await openEditor();
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	afterEach(async () => {
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('opens the comment box on a drag in Live Preview', async () => {
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await saveComment('Dragged.', annotated('the save', 'Dragged.'));
+	});
+
+	it('opens the comment box on a drag in Source mode', async () => {
+		await openEditor(true);
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await saveComment('In source.', annotated('the save', 'In source.'));
+	});
+
+	it('opens the comment box on a double-clicked word', async () => {
+		const { middle } = await endsOf('seizes');
+		await doubleClick(middle);
+		await saveComment('One word.', annotated('seizes', 'One word.'));
+	});
+
+	it('moves the cursor on a click with no selection, and opens no box', async () => {
+		const { middle } = await endsOf('seizes');
+		await pointerDrag(middle, middle);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		const at = await cursorOffset();
+		expect(at).toBeGreaterThan(EDIT_TEXT.indexOf('seizes'));
+		expect(at).toBeLessThan(EDIT_TEXT.indexOf('seizes') + 'seizes'.length);
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('ignores a keyboard selection', async () => {
+		const { start } = await endsOf('the save');
+		await pointerDrag(start, start);
+		await browser.keys([Key.Shift, Key.ArrowRight, Key.ArrowRight, Key.ArrowRight]);
+		await browser.keys(Key.Shift);
+		expect(await selectedText()).toBe('the');
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('shows the Annotate selection notice for a range it refuses', async () => {
+		// From "Some" into the Target of [^r1]: it would overlap the Annotation. In Source mode, so
+		// no syntax is revealed under the pointer mid-drag.
+		await openEditor(true);
+		const { start } = await endsOf('Some');
+		const { middle } = await endsOf('ex');
+		await pointerDrag(start, middle);
+		await expect($('.notice*=the selection overlaps annotation [^r1].')).toExist();
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(EDIT_TEXT);
+	});
+
+	it('ignores a selection made while a comment box is open', async () => {
+		const first = await endsOf('the save');
+		await pointerDrag(first.start, first.end);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		await $('.rm-cbox-input').setValue('First.');
+
+		// Pressing outside the box saves it; the selection that follows starts nothing.
+		const second = await endsOf('in place');
+		await pointerDrag(second.start, second.end);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await editorText()).toBe(annotated('the save', 'First.'));
+	});
+
+	it('keeps the drag trigger working', async () => {
+		await browser.executeObsidian(({ plugins }) => {
+			(plugins.reviewMarks as unknown as { settings: { dragTrigger: string } }).settings.dragTrigger = 'alt';
+		});
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end, { key: Key.Alt });
+		await saveComment('Triggered.', annotated('the save', 'Triggered.'));
+	});
+
+	it('does nothing on release while Review Mode is off', async () => {
+		await setReviewMode(false);
+		const { start, end } = await endsOf('the save');
+		await pointerDrag(start, end);
+		await browser.pause(200);
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await selectedText()).toBe('the save');
+		expect(await editorText()).toBe(EDIT_TEXT);
 	});
 });

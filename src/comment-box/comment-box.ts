@@ -33,6 +33,11 @@ export function openCommentBox(options: CommentBoxOptions): CommentBox {
 	return active;
 }
 
+/** Is a comment box open? */
+export function isCommentBoxOpen(): boolean {
+	return active !== null;
+}
+
 /** Closes the open box as if clicked away from: saves if there is text. */
 export function closeActiveCommentBox(): void {
 	active?.close('away');
