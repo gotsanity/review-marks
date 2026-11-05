@@ -22,6 +22,8 @@ import { livePreviewPopover } from './live-preview/popover';
 import { tableCellDecorations } from './live-preview/table-cells';
 import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
+import { registerReviewMode } from './review-mode/feedback';
+import { ReviewModeStore } from './review-mode/store';
 import { displaySettings } from './settings-tab/display';
 import { placementSettings } from './settings-tab/placement';
 import { ReviewMarksSettingTab, SECTION_ORDER } from './settings-tab/settings-tab';
@@ -29,6 +31,8 @@ import { DEFAULT_SETTINGS, SettingsStore, settingsFrom, type ReviewMarksSettings
 
 export default class ReviewMarksPlugin extends Plugin {
 	store = new SettingsStore({ ...DEFAULT_SETTINGS }, (s) => this.saveData(s));
+	/** Review Mode on or off, for the whole workspace. Never saved. */
+	reviewMode = new ReviewModeStore();
 	/** Features add their controls with `settingsTab.addSection(SECTION_ORDER.x, render)`. */
 	settingsTab!: ReviewMarksSettingTab;
 
@@ -60,7 +64,9 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerNavigation(this);
 		registerContextMenu(this, settings);
 		registerEditComment(this, settings);
-		registerSidebar(this, settings);
+		// Desktop only. Registered before the count so its status bar item sits just left of it.
+		if (!Platform.isMobile) registerReviewMode(this, this.reviewMode);
+		registerSidebar(this, settings, Platform.isMobile ? null : this.reviewMode);
 		registerStatusBar(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.statusBar, statusBarSettings);
 

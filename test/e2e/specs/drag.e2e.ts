@@ -2,13 +2,11 @@ import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 import { beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { resetVaultTo } from '../harness.ts';
+import { type Point, pointerDrag, resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Drag me.md';
 const TEXT = '# One\n\nKell fails the save and seizes in place.\n\n## Two\n\nMore text.\n';
 const TARGET = 'the save';
-
-type Point = { x: number; y: number };
 
 /** Opens the note in Live Preview (or Source mode), the cursor at its start, and `target` on screen. */
 async function open(text: string, target: string, source = false): Promise<void> {
@@ -55,23 +53,6 @@ async function endsOf(target: string): Promise<{ start: Point; end: Point }> {
 	return ends;
 }
 
-/** Holds `key` and drags from `start` to `end` with real pointer events. Leaves the button down if `release` is false. */
-async function drag(key: string, start: Point, end: Point, release = true): Promise<void> {
-	const keys = browser.action('key').down(key);
-	const pointer = browser.action('pointer').move(start).down().pause(50);
-	for (let i = 1; i <= 4; i++) {
-		pointer.move({ x: Math.round(start.x + ((end.x - start.x) * i) / 4), y: Math.round(start.y + ((end.y - start.y) * i) / 4) });
-	}
-	if (release) {
-		pointer.up();
-		// Ticks: move, down, pause, 4 moves, up. The key comes up one tick after the button.
-		for (let i = 0; i < 7; i++) keys.pause(0);
-		keys.up(key);
-	}
-	await browser.performActions([keys.toJSON(), pointer.toJSON()]);
-	if (release) await browser.releaseActions();
-}
-
 const editorText = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.getValue() ?? '');
 
 const undo = () => browser.executeObsidian(({ app }) => app.workspace.activeEditor?.editor?.undo());
@@ -103,7 +84,7 @@ describe('Annotate on drag', () => {
 	it('draws the range as a highlight, not a selection, while Alt is held', async () => {
 		const { start, end } = await endsOf(TARGET);
 		const before = await selections();
-		await drag(Key.Alt, start, end, false);
+		await pointerDrag(start, end, { key: Key.Alt, release: false });
 		try {
 			expect(await dragHighlight()).toBe(TARGET);
 			// No column selection, no extra cursors: the real selection hasn't moved.
@@ -115,7 +96,7 @@ describe('Annotate on drag', () => {
 
 	it('creates the Annotation on release and saves the Comment as one undo step', async () => {
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		const input = $('.rm-cbox-input');
 		await expect(input).toBeFocused();
@@ -135,14 +116,14 @@ describe('Annotate on drag', () => {
 
 	it('works the same when dragged right to left', async () => {
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, end, start);
+		await pointerDrag(end, start, { key: Key.Alt });
 		await expect($('.rm-cbox-input')).toBeFocused();
 		expect(await editorText()).toContain('{the save}[^r1]');
 	});
 
 	it('leaves no trace when cancelled', async () => {
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.rm-cbox-input')).toBeFocused();
 		await browser.keys('Escape');
 
@@ -154,7 +135,7 @@ describe('Annotate on drag', () => {
 
 	it('does nothing on a click without a drag', async () => {
 		const { start } = await endsOf(TARGET);
-		await drag(Key.Alt, start, start);
+		await pointerDrag(start, start, { key: Key.Alt });
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await editorText()).toBe(TEXT);
 	});
@@ -162,7 +143,7 @@ describe('Annotate on drag', () => {
 	it('uses the configured trigger and ignores other keys', async () => {
 		await setTrigger('mod-shift');
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await editorText()).toBe(TEXT);
 	});
@@ -170,7 +151,7 @@ describe('Annotate on drag', () => {
 	it('changes nothing when the trigger is Off', async () => {
 		await setTrigger('off');
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await dragHighlight()).toBe('');
 		expect(await editorText()).toBe(TEXT);
@@ -181,7 +162,7 @@ describe('Annotate on drag', () => {
 	it('works in Source mode', async () => {
 		await open(TEXT, TARGET, true);
 		const { start, end } = await endsOf(TARGET);
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await $('.rm-cbox-input').setValue('In source.');
 		await browser.keys('Enter');
 		await expect($('.rm-cbox')).not.toExist();
@@ -199,7 +180,7 @@ describe('Annotate on drag in a long note', () => {
 		const before = await scrollTop();
 
 		let { start, end } = await endsOf('middle target');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.rm-cbox-input')).toBeFocused();
 		expect(Math.abs((await scrollTop()) - before)).toBeLessThanOrEqual(1);
 		await browser.keys('Escape');
@@ -207,7 +188,7 @@ describe('Annotate on drag in a long note', () => {
 		expect(Math.abs((await scrollTop()) - before)).toBeLessThanOrEqual(1);
 
 		({ start, end } = await endsOf('middle target'));
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await $('.rm-cbox-input').setValue('Stay put.');
 		await browser.keys('Enter');
 		await expect($('.rm-cbox')).not.toExist();
@@ -269,7 +250,7 @@ describe('Annotate on drag in a Live Preview table', () => {
 
 	it('creates the Annotation inside the cell and opens the comment box, without opening a cell editor', async () => {
 		const { start, end } = await cellPoints('failed', 'save');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		const input = $('.rm-cbox-input');
 		await expect(input).toBeFocused();
@@ -286,7 +267,7 @@ describe('Annotate on drag in a Live Preview table', () => {
 
 	it('leaves no trace when cancelled', async () => {
 		const { start, end } = await cellPoints('failed', 'save');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.rm-cbox-input')).toBeFocused();
 		await browser.keys('Escape');
 		await expect($('.rm-cbox')).not.toExist();
@@ -295,7 +276,7 @@ describe('Annotate on drag in a Live Preview table', () => {
 
 	it('refuses a drag across cells with a notice', async () => {
 		const { start, end } = await cellPoints('Kell', 'failed');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 		await expect($('.notice*=an annotation must stay within one table cell.')).toExist();
 		await expect($('.rm-cbox')).not.toExist();
 		expect(await cellEditorOpen()).toBe(false);
