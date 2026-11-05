@@ -22,6 +22,7 @@ import { livePreviewPopover } from './live-preview/popover';
 import { tableCellDecorations } from './live-preview/table-cells';
 import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
+import { editorRelease } from './review-mode/editor-release';
 import { registerReviewMode } from './review-mode/feedback';
 import { ReviewModeStore } from './review-mode/store';
 import { displaySettings } from './settings-tab/display';
@@ -65,7 +66,10 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerContextMenu(this, settings);
 		registerEditComment(this, settings);
 		// Desktop only. Registered before the count so its status bar item sits just left of it.
-		if (!Platform.isMobile) registerReviewMode(this, this.reviewMode);
+		if (!Platform.isMobile) {
+			registerReviewMode(this, this.reviewMode);
+			this.registerEditorExtension(editorRelease(this.reviewMode, settings, Platform.isMacOS));
+		}
 		registerSidebar(this, settings, Platform.isMobile ? null : this.reviewMode);
 		registerStatusBar(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.statusBar, statusBarSettings);
