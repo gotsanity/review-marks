@@ -1,4 +1,4 @@
-import { $, browser, expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import { afterEach, describe, it } from 'mocha';
 
 type Hotkey = { modifiers: string[]; key: string };
@@ -103,19 +103,39 @@ describe('Hotkeys section', () => {
 
 	it('opens the Hotkeys tab filtered to Review Marks from the section button', async () => {
 		await openOurTab();
-		const button = $('.mod-settings button=Open Hotkeys settings');
-		await button.scrollIntoView();
-		await button.click();
+		expect(await clickInOurTab('button', 'Open Hotkeys settings')).toBe(true);
 		await browser.waitUntil(async () => (await activeTab()).id === 'hotkeys');
 		expect(await activeTab()).toEqual({ id: 'hotkeys', search: 'Review Marks' });
 	});
 
 	it("opens the Hotkeys tab filtered to Review Marks from a command's row", async () => {
 		await openOurTab();
-		const button = $('.mod-settings .setting-item*=Edit comment at cursor').$('.extra-setting-button');
-		await button.scrollIntoView();
-		await button.click();
+		expect(await clickInOurTab('row', 'Edit comment at cursor')).toBe(true);
 		await browser.waitUntil(async () => (await activeTab()).id === 'hotkeys');
 		expect(await activeTab()).toEqual({ id: 'hotkeys', search: 'Review Marks' });
 	});
 });
+
+/**
+ * Clicks the section's button with this text, or the open button on the row with this name. From
+ * 1.15 Settings opens in a window of its own, out of the main window WebDriver drives, so the
+ * click is dispatched in the page. False if there is no such control.
+ */
+function clickInOurTab(kind: 'button' | 'row', text: string): Promise<boolean> {
+	return browser.executeObsidian(
+		({ plugins }, kind, text) => {
+			const tab = (plugins.reviewMarks as unknown as { settingsTab: { containerEl: HTMLElement } }).settingsTab;
+			const items = Array.from(tab.containerEl.querySelectorAll('.setting-item'));
+			const control =
+				kind === 'button'
+					? Array.from(tab.containerEl.querySelectorAll('button')).find((b) => b.textContent === text)
+					: items
+							.find((item) => item.querySelector('.setting-item-name')?.textContent === text)
+							?.querySelector<HTMLElement>('.extra-setting-button');
+			control?.click();
+			return control !== undefined && control !== null;
+		},
+		kind,
+		text,
+	);
+}
