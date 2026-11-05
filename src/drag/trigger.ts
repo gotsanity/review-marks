@@ -4,6 +4,7 @@
 // 'mod' is the primary modifier: Ctrl on Windows and Linux, Cmd on macOS. 'meta' (the Windows
 // key) is offered on Windows and Linux only; 'ctrl' (the real Control key) on macOS only. Settings
 // sync between devices, so `effectiveTrigger` maps a value stored on the other platform.
+import { printModifiers } from '../hotkeys/printer';
 
 const TRIGGERS = [
 	'off',
@@ -37,55 +38,57 @@ export interface Modifiers {
 	shiftKey: boolean;
 }
 
-const OPTIONS_PC: [DragTrigger, string][] = [
-	['off', 'Off'],
-	['alt', 'Alt'],
-	['mod', 'Ctrl'],
-	['shift', 'Shift'],
-	['meta', 'Meta'],
-	['mod-alt', 'Ctrl+Alt'],
-	['mod-shift', 'Ctrl+Shift'],
-	['alt-shift', 'Alt+Shift'],
-	['mod-alt-shift', 'Ctrl+Alt+Shift'],
-];
-
-const OPTIONS_MAC: [DragTrigger, string][] = [
-	['off', 'Off'],
-	['alt', 'Option'],
-	['mod', 'Cmd'],
-	['ctrl', 'Control'],
-	['shift', 'Shift'],
-	['mod-alt', 'Cmd+Option'],
-	['mod-shift', 'Cmd+Shift'],
-	['ctrl-alt', 'Control+Option'],
-	['ctrl-shift', 'Control+Shift'],
-	['alt-shift', 'Option+Shift'],
-	['mod-alt-shift', 'Cmd+Option+Shift'],
-	['ctrl-alt-shift', 'Control+Option+Shift'],
-];
-
-/** The choices for the setting on this platform, as [stored value, label]. */
-export function dragTriggerOptions(isMac: boolean): [DragTrigger, string][] {
-	return isMac ? OPTIONS_MAC : OPTIONS_PC;
-}
-
 /** The stored trigger as this platform reads it. */
 export function effectiveTrigger(trigger: DragTrigger, isMac: boolean): DragTrigger {
 	if (isMac) return trigger === 'meta' ? 'mod' : trigger;
 	return trigger.startsWith('ctrl') ? (trigger.replace('ctrl', 'mod') as DragTrigger) : trigger;
 }
 
+/**
+ * The trigger that the held modifiers set, or null when no stored value can hold them (Ctrl + Win
+ * on Windows and Linux, for example). Nothing held is Off.
+ */
+export function triggerFor(keys: Modifiers, isMac: boolean): DragTrigger | null {
+	const parts = [
+		(isMac ? keys.metaKey : keys.ctrlKey) && 'mod',
+		isMac && keys.ctrlKey && 'ctrl',
+		!isMac && keys.metaKey && 'meta',
+		keys.altKey && 'alt',
+		keys.shiftKey && 'shift',
+	].filter((part) => part !== false);
+	const value = parts.length ? parts.join('-') : 'off';
+	return isDragTrigger(value) ? value : null;
+}
+
 /** Whether exactly the trigger's keys are held. Never true when the trigger is Off. */
 export function triggerHeld(keys: Modifiers, trigger: DragTrigger, isMac: boolean): boolean {
-	const t = effectiveTrigger(trigger, isMac);
-	if (t === 'off') return false;
-	const parts = t.split('-');
+	if (effectiveTrigger(trigger, isMac) === 'off') return false;
+	const want = triggerKeys(trigger, isMac);
+	return keys.ctrlKey === want.ctrlKey && keys.metaKey === want.metaKey && keys.altKey === want.altKey && keys.shiftKey === want.shiftKey;
+}
+
+/** The keys to hold for the trigger on this platform. None for Off. */
+function triggerKeys(trigger: DragTrigger, isMac: boolean): Modifiers {
+	const parts = effectiveTrigger(trigger, isMac).split('-');
 	const mod = parts.includes('mod');
-	const want = {
-		ctrl: parts.includes('ctrl') || (mod && !isMac),
-		meta: parts.includes('meta') || (mod && isMac),
-		alt: parts.includes('alt'),
-		shift: parts.includes('shift'),
+	return {
+		ctrlKey: parts.includes('ctrl') || (mod && !isMac),
+		metaKey: parts.includes('meta') || (mod && isMac),
+		altKey: parts.includes('alt'),
+		shiftKey: parts.includes('shift'),
 	};
-	return keys.ctrlKey === want.ctrl && keys.metaKey === want.meta && keys.altKey === want.alt && keys.shiftKey === want.shift;
+}
+
+/** Held keys in the hotkey printer's style: "Ctrl + Alt" on Windows and Linux, "⌘ ⌥" on macOS. */
+export function modifiersLabel(keys: Modifiers, isMac: boolean): string {
+	const names = [keys.ctrlKey && 'Ctrl', keys.metaKey && 'Meta', keys.altKey && 'Alt', keys.shiftKey && 'Shift'];
+	return printModifiers(
+		names.filter((name) => name !== false),
+		isMac,
+	);
+}
+
+/** A stored trigger as this platform shows it: "Off", or its keys like `modifiersLabel`. */
+export function triggerLabel(trigger: DragTrigger, isMac: boolean): string {
+	return effectiveTrigger(trigger, isMac) === 'off' ? 'Off' : modifiersLabel(triggerKeys(trigger, isMac), isMac);
 }

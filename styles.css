@@ -293,3 +293,13 @@ body {
 .setting-hotkey.rm-hotkey-conflict {
 	color: var(--text-error);
 }
+
+/* ---------- Drag trigger recorder (src/drag/setting.ts) ---------- */
+
+.review-marks-trigger-field {
+	min-width: 150px;
+}
+
+.review-marks-trigger-hint:empty {
+	display: none;
+}
