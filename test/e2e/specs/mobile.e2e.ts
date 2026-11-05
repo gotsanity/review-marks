@@ -55,6 +55,14 @@ const setWindowSize = (width: number, height: number) =>
 		height,
 	);
 
+/** Unloads and loads the plugin, so it registers for the current platform. Nothing is saved. */
+const reloadPlugin = () =>
+	browser.executeObsidian(async ({ app }) => {
+		const plugins = (app as unknown as { plugins: { disablePlugin(id: string): Promise<void>; enablePlugin(id: string): Promise<void> } }).plugins;
+		await plugins.disablePlugin('review-marks');
+		await plugins.enablePlugin('review-marks');
+	});
+
 describe('Mobile', () => {
 	before(async () => {
 		await setWindowSize(420, 860);
@@ -63,7 +71,10 @@ describe('Mobile', () => {
 			timeoutMsg: 'Obsidian did not switch to the phone UI',
 		});
 	});
-	after(() => browser.executeObsidian(({ app }) => (app as unknown as { emulateMobile(on: boolean): void }).emulateMobile(false)));
+	after(async () => {
+		await browser.executeObsidian(({ app }) => (app as unknown as { emulateMobile(on: boolean): void }).emulateMobile(false));
+		await reloadPlugin();
+	});
 
 	itUnlessTiledCi('comment box: Enter adds a line, only Save saves, and the box stays above the keyboard', async () => {
 		const plain = 'Kell fails the save and seizes in place.\n\nMore text.\n';
@@ -160,5 +171,20 @@ describe('Mobile', () => {
 		await open(TEXT, 'preview');
 		await $('.markdown-preview-view .rm-target[data-rm-id="r1"]').click();
 		await expect($('.rm-popover')).toHaveText(expect.stringContaining('One.'));
+	});
+
+	it('registers nothing for Review Mode', async () => {
+		// The plugin loaded on desktop; load it again as a phone.
+		await reloadPlugin();
+		await open(TEXT);
+		const commands = await browser.executeObsidian(({ app }) =>
+			Object.keys((app as unknown as { commands: { commands: Record<string, unknown> } }).commands.commands),
+		);
+		expect(commands).toContain('review-marks:open-annotations-sidebar');
+		expect(commands).not.toContain('review-marks:toggle-review-mode');
+		await expect($('.rm-status-review-mode')).not.toExist();
+		await browser.executeObsidianCommand('review-marks:open-annotations-sidebar');
+		await expect($('.rm-sidebar')).toExist();
+		await expect($('.rm-sidebar-header')).not.toExist();
 	});
 });
