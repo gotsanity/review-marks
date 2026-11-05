@@ -110,13 +110,12 @@ describe('readingTarget', () => {
 	it('fails when the drag is not over the note text', () => {
 		const other = block('<p>Somewhere else</p>');
 		const r = readingTarget(TEXT, sections(), rangeOver(other, 'else'));
-		expect(r).toEqual({ failure: 'outside-note', message: 'the selection is not in the note text.' });
+		expect(r).toEqual({ message: 'the selection is not in the note text.' });
 	});
 
-	it('marks a refusal from creating the Annotation as refused', () => {
+	it('refuses what creating the Annotation would refuse', () => {
 		const all = sections();
 		expect(readingTarget(TEXT, all, rangeOver((all[3] as RenderedSection).el, 'x = 1'))).toEqual({
-			failure: 'refused',
 			message: "an annotation can't start or end in code.",
 		});
 	});
@@ -125,13 +124,13 @@ describe('readingTarget', () => {
 		it('is outside the note when it lies entirely in the footnote list', () => {
 			const all = sections();
 			const r = readingTarget(TEXT, all, rangeOver((all[9] as RenderedSection).el, 'footnote text'));
-			expect(r).toMatchObject({ failure: 'outside-note' });
+			expect(r).toEqual({ message: 'the selection is not in the note text.' });
 		});
 
 		it('is outside the note when it lies entirely in math', () => {
 			const all = sections();
 			const r = readingTarget(TEXT, all, rangeOver((all[6] as RenderedSection).el, 'm c'));
-			expect(r).toMatchObject({ failure: 'outside-note' });
+			expect(r).toEqual({ message: 'the selection is not in the note text.' });
 		});
 
 		it('is clipped to the note text when it runs on into the footnote list', () => {

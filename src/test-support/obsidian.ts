@@ -11,10 +11,6 @@ class ButtonComponent {
 		this.buttonEl.textContent = text;
 		return this;
 	}
-	setCta(): this {
-		this.buttonEl.classList.add('mod-cta');
-		return this;
-	}
 	setTooltip(tooltip: string): this {
 		this.buttonEl.setAttribute('aria-label', tooltip);
 		return this;
