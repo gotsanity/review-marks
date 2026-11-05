@@ -70,6 +70,7 @@ class ReleaseHandler {
 		if (!this.store.on || e.button !== 0 || e.pointerType === 'touch') return;
 		if (isTableCellEditor(this.view)) return;
 		// Let CodeMirror finish its own selection handling first.
+		if (this.timer !== null) this.win.clearTimeout(this.timer);
 		this.timer = this.win.setTimeout(() => {
 			this.timer = null;
 			this.release(down);
