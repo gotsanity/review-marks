@@ -390,7 +390,7 @@ interface HotkeyManager {
 	getDefaultHotkeys(id: string): Hotkey[] | undefined;
 }
 
-/** A command's hotkeys as stored: the user's (undefined if they never set any) and its defaults. */
+/** A command's hotkeys as stored: its custom hotkeys (undefined if none were ever set) and its defaults. */
 export interface StoredHotkeys {
 	custom: Hotkey[] | undefined;
 	defaults: Hotkey[] | undefined;

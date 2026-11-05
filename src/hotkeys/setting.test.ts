@@ -116,7 +116,7 @@ describe('Hotkeys section conflicts', () => {
 		]);
 	});
 
-	it("doesn't count a default hotkey the user has replaced", () => {
+	it("doesn't count a default hotkey a custom one has replaced", () => {
 		custom['review-marks:annotate-selection'] = [{ modifiers: ['Mod'], key: 'S' }];
 		defaults['editor:save-file'] = [{ modifiers: ['Mod'], key: 'S' }];
 		custom['editor:save-file'] = [{ modifiers: ['Alt'], key: 'S' }];
