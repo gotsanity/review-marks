@@ -288,3 +288,8 @@ body {
 .rm-status-review-mode {
 	gap: var(--size-2-2);
 }
+
+/* A hotkey in the Hotkeys section that another command also uses. */
+.setting-hotkey.rm-hotkey-conflict {
+	color: var(--text-error);
+}
