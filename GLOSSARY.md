@@ -23,3 +23,7 @@ _Avoid_: User, annotator
 **Resolution**:
 Acting on an Annotation's Comment and removing the Annotation from the note; done by whoever revises the note, outside the plugin.
 _Avoid_: Reconciliation, fix, apply
+
+**Review Mode**:
+A state the Reviewer turns on in which finishing a text selection starts an Annotation on it at once, with no keys held; it covers every note until turned off.
+_Avoid_: Annotate mode, markup mode
