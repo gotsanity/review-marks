@@ -53,6 +53,25 @@ const activeTab = () =>
 		};
 	});
 
+/** The chips on the row with this name: text, whether it shows in the error colour, and tooltip. */
+const chipsOf = (name: string) =>
+	browser.executeObsidian(({ plugins }, name) => {
+		const tab = (plugins.reviewMarks as unknown as { settingsTab: { containerEl: HTMLElement } }).settingsTab;
+		const row = Array.from(tab.containerEl.querySelectorAll('.setting-item')).find(
+			(item) => item.querySelector('.setting-item-name')?.textContent === name,
+		);
+		const probe = tab.containerEl.createSpan({ attr: { style: 'color: var(--text-error)' } });
+		// From 1.15 Settings has a window of its own, so read styles through the element's window.
+		const style = (el: HTMLElement) => (el.ownerDocument.defaultView ?? window).getComputedStyle(el);
+		const errorColour = style(probe).color;
+		probe.remove();
+		return Array.from(row?.querySelectorAll<HTMLElement>('.setting-hotkey') ?? []).map((chip) => ({
+			text: chip.textContent,
+			red: style(chip).color === errorColour,
+			tooltip: chip.getAttribute('aria-label'),
+		}));
+	}, name);
+
 const isMac = () => browser.executeObsidian(({ obsidian }) => obsidian.Platform.isMacOS);
 
 describe('Hotkeys section', () => {
@@ -100,6 +119,27 @@ describe('Hotkeys section', () => {
 		await openOurTab();
 		const mac = await isMac();
 		expect(new Map(await rows()).get('Go to next annotation')).toEqual([mac ? '⌘ ⌥ F11' : 'Ctrl + Alt + F11']);
+	});
+
+	it("shows a hotkey a core command also uses in red, naming that command", async () => {
+		const bold = await browser.executeObsidian(({ app }) => {
+			const internal = app as unknown as {
+				commands: { commands: Record<string, { name: string }> };
+				hotkeyManager: { getDefaultHotkeys(id: string): Hotkey[] };
+			};
+			return {
+				name: internal.commands.commands['editor:toggle-bold']?.name,
+				hotkeys: internal.hotkeyManager.getDefaultHotkeys('editor:toggle-bold'),
+			};
+		});
+		expect(bold.hotkeys).toEqual([{ modifiers: ['Mod'], key: 'B' }]);
+		await setHotkeys({ [ANNOTATE]: [{ modifiers: ['Mod'], key: 'B' }, { modifiers: ['Alt'], key: 'F10' }] });
+		await openOurTab();
+		const mac = await isMac();
+		expect(await chipsOf('Annotate selection')).toEqual([
+			{ text: mac ? '⌘ B' : 'Ctrl + B', red: true, tooltip: `Also used by ${bold.name}` },
+			{ text: mac ? '⌥ F10' : 'Alt + F10', red: false, tooltip: null },
+		]);
 	});
 
 	it('opens the Hotkeys tab filtered to Review Marks from the section button', async () => {
