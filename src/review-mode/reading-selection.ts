@@ -1,7 +1,7 @@
 // A Review Mode release in Reading view, as plain inputs for releaseDecision: the native
 // selection's ranges over the rendered sections, mapped to the note only if the release isn't
 // ignored first. No Obsidian imports; tested with a fake DOM.
-import { READING_UNAVAILABLE, readingRange, type RenderedSection } from '../drag/reading-target';
+import { READING_UNAVAILABLE, readingRange, type RenderedSection } from '../reading-annotate/reading-range';
 import type { Release } from './release';
 
 /** The release of LF note `text`, rendered as `sections`, with the selection's `ranges`. */

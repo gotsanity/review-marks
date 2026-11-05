@@ -6,7 +6,7 @@
 import type { MarkdownView, Plugin } from 'obsidian';
 import { isCommentBoxOpen } from '../comment-box/comment-box';
 import { normalizeLineEndings } from '../core';
-import { annotateInLivePreview, readingViewAt } from '../drag/reading-drag';
+import { annotateInLivePreview, readingViewAt } from '../reading-annotate/reading-annotate';
 import { triggerHeld } from '../drag/trigger';
 import { keepsOwnDrag } from '../guards';
 import { notify } from '../notice';

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { block, rangeOver } from '../test-support/fake-dom';
-import type { RenderedSection } from '../drag/reading-target';
+import type { RenderedSection } from '../reading-annotate/reading-range';
 import { releaseDecision } from './release';
 import { readingRelease } from './reading-selection';
 

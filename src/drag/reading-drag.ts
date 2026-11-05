@@ -4,17 +4,17 @@
 // the same height on screen, and the Annotation is created there with its comment box open.
 // A refused drag leaves Reading view as it was. Every fragile step is guarded (src/guards.ts);
 // if one fails, a notice says to switch to Live Preview.
-import { MarkdownView, type Plugin, type Workspace } from 'obsidian';
-import { annotateRange } from '../commands/annotate-selection';
+import type { MarkdownView, Plugin } from 'obsidian';
 import { normalizeLineEndings } from '../core';
 import { onEveryWindow } from '../every-window';
-import { caretFromPoint, inRenderedNoteText, keepsOwnDrag, scrollToAnnotation, showDragRange, switchToLivePreview, type Caret } from '../guards';
+import { caretFromPoint, keepsOwnDrag, showDragRange, type Caret } from '../guards';
 import { notify } from '../notice';
+import { annotateInLivePreview, readingViewAt } from '../reading-annotate/reading-annotate';
+import { READING_UNAVAILABLE } from '../reading-annotate/reading-range';
 import { renderedSections } from '../reading-view/reading-view';
 import type { ReviewMarksSettings } from '../settings';
 import { rangeBetween, swallow, trackPointer } from './track';
-import { READING_UNAVAILABLE, readingTarget } from './reading-target';
-import type { SourceRange } from '../selection-mapping/selection-mapping';
+import { readingTarget } from './reading-target';
 import { triggerHeld } from './trigger';
 
 /** Annotates the drag `range` over the Reading view of `view`. */
@@ -31,39 +31,6 @@ async function annotateFromReading(view: MarkdownView, range: Range, settings: R
 		return;
 	}
 	await annotateInLivePreview(view, text, target, range, settings);
-}
-
-/**
- * Switches `view` from Reading view to Live Preview with `range` (over the rendered note) at the
- * same height on screen, and creates the Annotation on `target` (offsets of LF note `text`) with
- * its comment box open. Shared by the drag and Review Mode.
- */
-export async function annotateInLivePreview(
-	view: MarkdownView,
-	text: string,
-	target: SourceRange,
-	range: Range,
-	settings: ReviewMarksSettings,
-): Promise<void> {
-	const top = range.getClientRects()[0]?.top ?? range.getBoundingClientRect().top;
-	const cm = await switchToLivePreview(view);
-	if (!cm || cm.state.doc.toString() !== text) {
-		notify(READING_UNAVAILABLE);
-		return;
-	}
-	await scrollToAnnotation(view, target.from, { top });
-	annotateRange(cm, target.from, target.to, settings);
-}
-
-/** The note in Reading view whose rendered note text holds `el`, if any. Its inline title, properties and footer don't count. */
-export function readingViewAt(workspace: Workspace, el: Element): MarkdownView | null {
-	if (!inRenderedNoteText(el)) return null;
-	let found: MarkdownView | null = null;
-	workspace.iterateAllLeaves((leaf) => {
-		const v = leaf.view;
-		if (!found && v instanceof MarkdownView && v.getMode() === 'preview' && v.previewMode.containerEl.contains(el)) found = v;
-	});
-	return found;
 }
 
 /** Registers the gesture on every window. `isMac` is `Platform.isMacOS`. */

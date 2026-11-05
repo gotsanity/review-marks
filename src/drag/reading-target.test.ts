@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { block, rangeOver } from '../test-support/fake-dom';
-import { readingTarget, type RenderedSection } from './reading-target';
+import type { RenderedSection } from '../reading-annotate/reading-range';
+import { readingTarget } from './reading-target';
 
 const TEXT = [
 	'# Notes', //                                       line 0
