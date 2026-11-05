@@ -149,6 +149,14 @@ export function cellEditorAt(view: EditorView, el: Element): OpenCellEditor | nu
 	return cellView && cell ? { view: cellView, cell } : null;
 }
 
+/**
+ * Is `el` in the note editor `view` itself, or in a cell editor open in one of its tables? Another
+ * editor nested in it, such as an embed's, doesn't count.
+ */
+export function inNoteEditor(view: EditorView, el: Element): boolean {
+	return el.closest('.cm-editor') === view.dom || cellEditorAt(view, el) !== null;
+}
+
 /** The table widgets in a Live Preview editor, each with its cells, skipping any that don't match the source. */
 export function liveTableCells(view: EditorView): RenderedCell[][] {
 	const out: RenderedCell[][] = [];

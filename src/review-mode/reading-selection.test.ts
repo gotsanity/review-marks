@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { block, rangeOver } from '../test-support/fake-dom';
 import type { RenderedSection } from '../reading-annotate/reading-range';
 import { releaseDecision } from './release';
-import { readingRelease } from './reading-selection';
+import { readingSelectionRelease } from './reading-selection';
 
 const TEXT = [
 	'Kell **fails** the save.', //        line 0
@@ -41,7 +41,7 @@ function sections(): RenderedSection[] {
 
 /** What releasing the pointer over `ranges` in Reading view does, with the note's text for a start. */
 function decide(all: RenderedSection[], ranges: Range[], over: { down?: 'content' | 'keeps-own' | 'elsewhere'; commentBoxOpen?: boolean } = {}) {
-	const d = releaseDecision(readingRelease(TEXT, all, ranges, over.down ?? 'content', over.commentBoxOpen ?? false));
+	const d = releaseDecision(readingSelectionRelease(TEXT, all, ranges, over.down ?? 'content', over.commentBoxOpen ?? false));
 	return 'start' in d ? TEXT.slice(d.start.from, d.start.to) : d;
 }
 

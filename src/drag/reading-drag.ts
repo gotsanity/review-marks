@@ -9,6 +9,7 @@ import { normalizeLineEndings } from '../core';
 import { onEveryWindow } from '../every-window';
 import { caretFromPoint, keepsOwnDrag, showDragRange, type Caret } from '../guards';
 import { notify } from '../notice';
+import { elementOf, isPrimaryPress } from '../pointer';
 import { annotateInLivePreview, readingViewAt } from '../reading-annotate/reading-annotate';
 import { READING_UNAVAILABLE } from '../reading-annotate/reading-range';
 import { renderedSections } from '../reading-view/reading-view';
@@ -39,10 +40,9 @@ export function registerReadingDrag(plugin: Plugin, settings: () => ReviewMarksS
 	let active = false;
 
 	const onDown = (e: PointerEvent): void => {
-		if (active || e.button !== 0 || e.pointerType === 'touch') return;
+		if (active || !isPrimaryPress(e)) return;
 		if (!triggerHeld(e, settings().dragTrigger, isMac)) return;
-		const target = e.target as Node | null;
-		const el = target?.nodeType === Node.ELEMENT_NODE ? (target as Element) : target?.parentElement;
+		const el = elementOf(e.target);
 		if (!el || keepsOwnDrag(el)) return;
 		const view = readingViewAt(workspace, el);
 		if (!view) return;

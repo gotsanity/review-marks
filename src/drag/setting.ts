@@ -16,7 +16,7 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 			);
 		const hint = setting.descEl.createDiv({ cls: 'rm-trigger-hint mod-warning' });
 		const field = setting.controlEl.createEl('button', { cls: 'rm-trigger-field' });
-		let stop: (() => void) | null = null;
+		let cancelRecording: (() => void) | null = null;
 
 		const showStored = () => {
 			field.setText(triggerLabel(store.current.dragTrigger, isMac));
@@ -37,7 +37,7 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 				win.removeEventListener('keyup', onKeyup, true);
 				field.removeEventListener('blur', cancel);
 				app.keymap.popScope(scope);
-				stop = null;
+				cancelRecording = null;
 			};
 			const cancel = () => {
 				end();
@@ -69,14 +69,14 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 			win.addEventListener('keydown', onKeydown, true);
 			win.addEventListener('keyup', onKeyup, true);
 			field.addEventListener('blur', cancel);
-			stop = cancel;
+			cancelRecording = cancel;
 			field.setText('Press the keys…');
 			field.addClass('mod-cta');
 			hint.setText('');
 		};
 
 		field.addEventListener('click', () => {
-			if (!stop) start();
+			if (!cancelRecording) start();
 		});
 		setting.addExtraButton((button) => {
 			button.extraSettingsEl.addClass('rm-trigger-off');
@@ -84,7 +84,7 @@ export function dragSettings(app: App, isMac: boolean): SettingsSection {
 				.setIcon('x')
 				.setTooltip('Turn off')
 				.onClick(async () => {
-					stop?.();
+					cancelRecording?.();
 					await store.update({ dragTrigger: 'off' });
 					showStored();
 				});

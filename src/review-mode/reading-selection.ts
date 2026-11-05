@@ -1,11 +1,11 @@
-// A Review Mode release in Reading view, as plain inputs for releaseDecision: the native
-// selection's ranges over the rendered sections, mapped to the note only if the release isn't
-// ignored first. No Obsidian imports; tested with a fake DOM.
+// A Review Mode release in Reading view, as plain inputs for releaseDecision: the shape of the
+// native selection's ranges, and their mapping over the rendered sections to the note, done only
+// if the release isn't ignored first. No Obsidian imports; tested with a fake DOM.
 import { READING_UNAVAILABLE, readingRange, type RenderedSection } from '../reading-annotate/reading-range';
-import type { Release } from './release';
+import { selectionShape, type Release } from './release';
 
 /** The release of LF note `text`, rendered as `sections`, with the selection's `ranges`. */
-export function readingRelease(
+export function readingSelectionRelease(
 	text: string,
 	sections: readonly RenderedSection[],
 	ranges: readonly Range[],
@@ -15,13 +15,14 @@ export function readingRelease(
 	const [range] = ranges;
 	return {
 		text,
-		// Only their count and emptiness matter: `map` gives the note range.
-		ranges: ranges.map((r) => ({ from: 0, to: r.collapsed ? 0 : 1 })),
+		selection: {
+			shape: selectionShape(ranges.map((r) => ({ empty: r.collapsed }))),
+			map: () => {
+				if (!range || sections.length === 0) return { failure: 'not-found', message: READING_UNAVAILABLE };
+				return readingRange(text, sections, range);
+			},
+		},
 		commentBoxOpen,
 		down,
-		map: () => {
-			if (!range || sections.length === 0) return { failure: 'not-found', message: READING_UNAVAILABLE };
-			return readingRange(text, sections, range);
-		},
 	};
 }
