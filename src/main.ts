@@ -24,6 +24,7 @@ import { CommentPopover } from './popover/popover';
 import { registerReadingView, rerenderReadingViews } from './reading-view/reading-view';
 import { editorRelease } from './review-mode/editor-release';
 import { registerReviewMode } from './review-mode/feedback';
+import { registerReadingRelease } from './review-mode/reading-release';
 import { ReviewModeStore } from './review-mode/store';
 import { displaySettings } from './settings-tab/display';
 import { placementSettings } from './settings-tab/placement';
@@ -69,6 +70,7 @@ export default class ReviewMarksPlugin extends Plugin {
 		if (!Platform.isMobile) {
 			registerReviewMode(this, this.reviewMode);
 			this.registerEditorExtension(editorRelease(this.reviewMode, settings, Platform.isMacOS));
+			registerReadingRelease(this, this.reviewMode, settings, Platform.isMacOS);
 		}
 		registerSidebar(this, settings, Platform.isMobile ? null : this.reviewMode);
 		registerStatusBar(this, this.store);

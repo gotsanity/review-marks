@@ -4,7 +4,7 @@
 // the same height on screen, and the Annotation is created there with its comment box open.
 // A refused drag leaves Reading view as it was. Every fragile step is guarded (src/guards.ts);
 // if one fails, a notice says to switch to Live Preview.
-import { MarkdownView, type Plugin } from 'obsidian';
+import { MarkdownView, type Plugin, type Workspace } from 'obsidian';
 import { annotateRange } from '../commands/annotate-selection';
 import { normalizeLineEndings } from '../core';
 import { caretFromPoint, keepsOwnDrag, scrollToAnnotation, showDragRange, switchToLivePreview, type Caret } from '../guards';
@@ -12,17 +12,16 @@ import { notify } from '../notice';
 import { renderedSections } from '../reading-view/reading-view';
 import type { ReviewMarksSettings } from '../settings';
 import { rangeBetween, swallow, trackPointer } from './track';
-import { readingTarget } from './reading-target';
+import { READING_UNAVAILABLE, readingTarget } from './reading-target';
+import type { SourceRange } from '../selection-mapping/selection-mapping';
 import { triggerHeld } from './trigger';
-
-const UNAVAILABLE = "annotate-on-drag isn't available in Reading view here. Switch to Live Preview to annotate.";
 
 /** Annotates the drag `range` over the Reading view of `view`. */
 async function annotateFromReading(view: MarkdownView, range: Range, settings: ReviewMarksSettings): Promise<void> {
 	const text = normalizeLineEndings(view.getViewData());
 	const sections = renderedSections(view.previewMode.containerEl);
 	if (sections.length === 0) {
-		notify(UNAVAILABLE);
+		notify(READING_UNAVAILABLE);
 		return;
 	}
 	const target = readingTarget(text, sections, range);
@@ -30,14 +29,39 @@ async function annotateFromReading(view: MarkdownView, range: Range, settings: R
 		notify(target.message);
 		return;
 	}
+	await annotateInLivePreview(view, text, target, range, settings);
+}
+
+/**
+ * Switches `view` from Reading view to Live Preview with `range` (over the rendered note) at the
+ * same height on screen, and creates the Annotation on `target` (offsets of LF note `text`) with
+ * its comment box open. Shared by the drag and Review Mode.
+ */
+export async function annotateInLivePreview(
+	view: MarkdownView,
+	text: string,
+	target: SourceRange,
+	range: Range,
+	settings: ReviewMarksSettings,
+): Promise<void> {
 	const top = range.getClientRects()[0]?.top ?? range.getBoundingClientRect().top;
 	const cm = await switchToLivePreview(view);
 	if (!cm || cm.state.doc.toString() !== text) {
-		notify(UNAVAILABLE);
+		notify(READING_UNAVAILABLE);
 		return;
 	}
 	await scrollToAnnotation(view, target.from, { top });
 	annotateRange(cm, target.from, target.to, settings);
+}
+
+/** The note in Reading view whose rendered content holds `el`, if any. */
+export function readingViewAt(workspace: Workspace, el: Element): MarkdownView | null {
+	let found: MarkdownView | null = null;
+	workspace.iterateAllLeaves((leaf) => {
+		const v = leaf.view;
+		if (!found && v instanceof MarkdownView && v.getMode() === 'preview' && v.previewMode.containerEl.contains(el)) found = v;
+	});
+	return found;
 }
 
 /** Registers the gesture on the main window. `isMac` is `Platform.isMacOS`. */
@@ -45,29 +69,20 @@ export function registerReadingDrag(plugin: Plugin, settings: () => ReviewMarksS
 	const { workspace } = plugin.app;
 	let active = false;
 
-	const readingViewAt = (el: Element): MarkdownView | null => {
-		let found: MarkdownView | null = null;
-		workspace.iterateAllLeaves((leaf) => {
-			const v = leaf.view;
-			if (!found && v instanceof MarkdownView && v.getMode() === 'preview' && v.previewMode.containerEl.contains(el)) found = v;
-		});
-		return found;
-	};
-
 	const onDown = (e: PointerEvent): void => {
 		if (active || e.button !== 0 || e.pointerType === 'touch') return;
 		if (!triggerHeld(e, settings().dragTrigger, isMac)) return;
 		const target = e.target as Node | null;
 		const el = target?.nodeType === Node.ELEMENT_NODE ? (target as Element) : target?.parentElement;
 		if (!el || keepsOwnDrag(el)) return;
-		const view = readingViewAt(el);
+		const view = readingViewAt(workspace, el);
 		if (!view) return;
 
 		const doc = el.ownerDocument;
 		const anchor = caretFromPoint(doc, e.clientX, e.clientY);
 		if (anchor === undefined) {
 			swallow(e);
-			notify(UNAVAILABLE);
+			notify(READING_UNAVAILABLE);
 			return;
 		}
 		if (!anchor) return;

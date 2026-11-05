@@ -28,6 +28,8 @@ export interface MappingFailure {
 	message: string;
 }
 
+const OUTSIDE_NOTE: MappingFailure = { failure: 'outside-note', message: 'the selection is not in the note text.' };
+
 /** Rendered content that has no counterpart in the slice's source text (with a Live Preview table's own controls). */
 const SKIP =
 	'sup.footnote-ref, .rm-badge, .rm-hidden, .footnotes, section.footnotes, .frontmatter, .metadata-container, ' +
@@ -162,7 +164,7 @@ export function mapSelection(text: string, slices: readonly RenderedSlice[], ran
 			return false;
 		}
 	});
-	if (touched.length === 0) return { failure: 'outside-note', message: 'the selection is not in the note text.' };
+	if (touched.length === 0) return OUTSIDE_NOTE;
 
 	const vis = visibility(text);
 	const hitsOf = new Map<RenderedSlice, Hit[]>();
@@ -190,6 +192,17 @@ export function mapSelection(text: string, slices: readonly RenderedSlice[], ran
 			}
 		}
 	}
+	if (from < 0 && !touched.some((s) => selectsRenderedText(s, range))) return OUTSIDE_NOTE;
 	if (from < 0 || to <= from) return { failure: 'not-found', message: 'could not find the selected text in the note.' };
 	return snapRange(text, { from, to }, vis);
+}
+
+/** Does `range` select any non-space text of the slice outside the areas mapping skips (math, the footnote list, …)? */
+function selectsRenderedText(slice: RenderedSlice, range: Range): boolean {
+	for (const node of renderedTextNodes(slice.el)) {
+		for (let i = 0; i < node.data.length; i++) {
+			if (!isSpace(node.data[i]) && isSelected(range, { node, index: i, offset: 0 })) return true;
+		}
+	}
+	return false;
 }
