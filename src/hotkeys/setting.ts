@@ -33,13 +33,13 @@ export function hotkeysSettings(plugin: HotkeysPlugin, isMac: boolean): Settings
 
 		new Setting(containerEl).setName('Hotkeys').setHeading();
 		new Setting(containerEl)
-			.setDesc('Hotkeys for these commands are set in Obsidian’s Hotkeys settings.')
-			.addButton((button) => button.setButtonText('Open Hotkeys settings').onClick(openHotkeys));
+			.setDesc('Hotkeys for these commands are set in Obsidian’s hotkeys settings.')
+			.addButton((button) => button.setButtonText('Open hotkeys settings').onClick(openHotkeys));
 
 		for (const command of commands) {
 			const row = new Setting(containerEl).setName(command.name);
 			row.addExtraButton((button) =>
-				button.setIcon('settings').setTooltip('Change in Hotkeys settings').onClick(openHotkeys),
+				button.setIcon('settings').setTooltip('Change in hotkeys settings').onClick(openHotkeys),
 			);
 			const chips = row.controlEl.createDiv({ cls: 'setting-command-hotkeys' });
 			if (!readHotkeys) continue;

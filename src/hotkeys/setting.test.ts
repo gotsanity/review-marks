@@ -78,7 +78,7 @@ describe('Hotkeys section', () => {
 
 	it('opens the Hotkeys tab filtered to Review Marks from the section button', () => {
 		const el = draw(fakeApp());
-		const button = Array.from(el.querySelectorAll('button')).find((b) => b.textContent === 'Open Hotkeys settings');
+		const button = Array.from(el.querySelectorAll('button')).find((b) => b.textContent === 'Open hotkeys settings');
 		button?.click();
 		expectHotkeysTabOpened();
 	});
