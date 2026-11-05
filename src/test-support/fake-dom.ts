@@ -6,12 +6,14 @@
 interface SpanInfo {
 	cls?: string;
 	text?: string;
+	attr?: Record<string, string>;
 }
 
 function span(doc: Document, o: SpanInfo = {}): HTMLSpanElement {
 	const el = doc.createElement('span');
 	if (o.cls) el.className = o.cls;
 	if (o.text !== undefined) el.textContent = o.text;
+	for (const [name, value] of Object.entries(o.attr ?? {})) el.setAttribute(name, value);
 	return el;
 }
 

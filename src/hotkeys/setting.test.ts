@@ -92,6 +92,38 @@ describe('Hotkeys section', () => {
 	});
 });
 
+describe('Hotkeys section conflicts', () => {
+	/** Every chip, as [text, whether it is marked as a conflict, its tooltip]. */
+	const chips = (el: HTMLElement) =>
+		Array.from(el.querySelectorAll('.setting-hotkey')).map((chip) => [
+			chip.textContent,
+			chip.classList.contains('rm-hotkey-conflict'),
+			chip.getAttribute('aria-label'),
+		]);
+
+	it('marks a hotkey another command also uses in red, naming the other commands, and leaves the rest alone', () => {
+		custom['review-marks:annotate-selection'] = [
+			{ modifiers: ['Mod'], key: 'S' },
+			{ modifiers: ['Alt'], key: 'A' },
+		];
+		custom['review-marks:edit-comment'] = [{ modifiers: ['Mod'], key: 'S' }];
+		defaults['editor:save-file'] = [{ modifiers: ['Mod'], key: 'S' }];
+		expect(chips(draw(fakeApp()))).toEqual([
+			['Ctrl + S', true, 'Also used by Review Marks: Edit comment, Save current file'],
+			['Alt + A', false, null],
+			['Ctrl + S', true, 'Also used by Review Marks: Annotate selection, Save current file'],
+			['Blank', false, null],
+		]);
+	});
+
+	it("doesn't count a default hotkey the user has replaced", () => {
+		custom['review-marks:annotate-selection'] = [{ modifiers: ['Mod'], key: 'S' }];
+		defaults['editor:save-file'] = [{ modifiers: ['Mod'], key: 'S' }];
+		custom['editor:save-file'] = [{ modifiers: ['Alt'], key: 'S' }];
+		expect(chips(draw(fakeApp()))[0]).toEqual(['Ctrl + S', false, null]);
+	});
+});
+
 describe('Hotkeys section without the private APIs', () => {
 	it('lists the commands with no hotkeys when the hotkey manager is missing, and the buttons still work', () => {
 		custom['review-marks:annotate-selection'] = [{ modifiers: ['Mod', 'Shift'], key: 'A' }];
