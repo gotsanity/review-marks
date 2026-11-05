@@ -2,7 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { obsidianPage } from 'wdio-obsidian-service';
-import { resetVaultTo } from '../harness.ts';
+import { type Point, pointerDrag, resetVaultTo } from '../harness.ts';
 
 const NOTE = 'Drag in reading.md';
 const TEXT = [
@@ -22,8 +22,6 @@ const TEXT = [
 	'| Doreth | failure |',
 	'',
 ].join('\n');
-
-type Point = { x: number; y: number };
 
 /** Opens the note in Reading view, with the drag trigger set to Alt. */
 async function openInReading(): Promise<void> {
@@ -79,20 +77,6 @@ async function pointsIn(first: string, last: string): Promise<{ start: Point; en
 	return points;
 }
 
-/** Holds `key` and drags from `start` to `end` with real pointer events. */
-async function drag(key: string, start: Point, end: Point): Promise<void> {
-	const keys = browser.action('key').down(key);
-	const pointer = browser.action('pointer').move(start).down().pause(50);
-	for (let i = 1; i <= 4; i++) {
-		pointer.move({ x: Math.round(start.x + ((end.x - start.x) * i) / 4), y: Math.round(start.y + ((end.y - start.y) * i) / 4) });
-	}
-	pointer.up();
-	for (let i = 0; i < 7; i++) keys.pause(0);
-	keys.up(key);
-	await browser.performActions([keys.toJSON(), pointer.toJSON()]);
-	await browser.releaseActions();
-}
-
 /** The note's mode: 'preview' for Reading view, 'live' for Live Preview, 'source' for Source mode. */
 const mode = () =>
 	browser.executeObsidian(({ app, obsidian }) => {
@@ -134,7 +118,7 @@ describe('Annotate on drag in Reading view', () => {
 
 	it('maps a drag across bold text, switches to Live Preview at the same height and opens the comment box', async () => {
 		const { start, end, top } = await pointsIn('fails', 'save');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		const input = $('.rm-cbox-input');
 		await expect(input).toBeFocused();
@@ -154,7 +138,7 @@ describe('Annotate on drag in Reading view', () => {
 
 	it('maps a drag in a list item past its marker and over bold text', async () => {
 		const { start, end } = await pointsIn('item with', 'strong');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		await expect($('.rm-cbox-input')).toBeFocused();
 		expect(await mode()).toBe('live');
@@ -163,7 +147,7 @@ describe('Annotate on drag in Reading view', () => {
 
 	it('refuses a drag inside code with a notice and stays in Reading view', async () => {
 		const { start, end } = await pointsIn('answer', '42');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		await browser.waitUntil(async () => (await notices()).some((n) => n.includes("an annotation can't start or end in code.")));
 		expect(await mode()).toBe('preview');
@@ -173,7 +157,7 @@ describe('Annotate on drag in Reading view', () => {
 
 	it('refuses a drag across table cells with a notice and stays in Reading view', async () => {
 		const { start, end } = await pointsIn('Doreth', 'failure');
-		await drag(Key.Alt, start, end);
+		await pointerDrag(start, end, { key: Key.Alt });
 
 		await browser.waitUntil(async () => (await notices()).some((n) => n.includes('an annotation must stay within one table cell.')));
 		expect(await mode()).toBe('preview');
@@ -199,7 +183,7 @@ describe('Annotate on drag in Reading view', () => {
 
 		it('says to switch to Live Preview and changes nothing', async () => {
 			const { start, end } = await pointsIn('fails', 'save');
-			await drag(Key.Alt, start, end);
+			await pointerDrag(start, end, { key: Key.Alt });
 
 			await browser.waitUntil(async () => (await notices()).some((n) => n.includes('Switch to Live Preview to annotate.')));
 			expect(await mode()).toBe('preview');
