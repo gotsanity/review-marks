@@ -51,3 +51,37 @@ export async function freshState(): Promise<void> {
  * `.obsidian` folder, so the reset keeps it.
  */
 export const resetVaultTo = (files: Record<string, string>): Promise<void> => obsidianPage.resetVault(VAULTS.empty, files);
+
+/** A point on screen, in CSS pixels from the window's top left. */
+export type Point = { x: number; y: number };
+
+/**
+ * Drags from `start` to `end` with real WebDriver pointer actions, in four steps, holding `key`
+ * when given (Review Mode drags with no key held). The key goes down before the button and comes
+ * up one tick after it. With `release: false` the button and key stay down, so a test can look at
+ * the drag in progress; it must call `browser.releaseActions()` afterwards.
+ */
+export async function pointerDrag(start: Point, end: Point, { key, release = true }: { key?: string; release?: boolean } = {}): Promise<void> {
+	const pointer = browser.action('pointer').move(start).down().pause(50);
+	for (let i = 1; i <= 4; i++) {
+		pointer.move({ x: Math.round(start.x + ((end.x - start.x) * i) / 4), y: Math.round(start.y + ((end.y - start.y) * i) / 4) });
+	}
+	if (release) pointer.up();
+	const sources = [pointer.toJSON()];
+	if (key) {
+		const keys = browser.action('key').down(key);
+		if (release) {
+			// Ticks: move, down, pause, 4 moves, up. The key comes up one tick after the button.
+			for (let i = 0; i < 7; i++) keys.pause(0);
+			keys.up(key);
+		}
+		sources.unshift(keys.toJSON());
+	}
+	await browser.performActions(sources);
+	if (release) await browser.releaseActions();
+}
+
+/** Double-clicks at `point` with real WebDriver pointer actions. */
+export async function doubleClick(point: Point): Promise<void> {
+	await browser.action('pointer').move(point).down().up().pause(10).down().up().perform();
+}
