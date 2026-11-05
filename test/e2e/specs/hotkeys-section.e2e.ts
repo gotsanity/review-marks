@@ -77,6 +77,7 @@ describe('Hotkeys section', () => {
 		await openOurTab();
 		const names = (await rows()).map(([name]) => name);
 		expect([...names].sort()).toEqual(commands.map((c) => c.name).sort());
+		expect(names).toContain('Toggle review mode');
 	});
 
 	it('shows hotkeys set in the Hotkeys tab, printed for this platform', async () => {
