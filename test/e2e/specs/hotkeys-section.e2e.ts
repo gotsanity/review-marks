@@ -144,7 +144,7 @@ describe('Hotkeys section', () => {
 
 	it('opens the Hotkeys tab filtered to Review Marks from the section button', async () => {
 		await openOurTab();
-		expect(await clickInOurTab('button', 'Open Hotkeys settings')).toBe(true);
+		expect(await clickInOurTab('button', 'Open hotkeys settings')).toBe(true);
 		await browser.waitUntil(async () => (await activeTab()).id === 'hotkeys');
 		expect(await activeTab()).toEqual({ id: 'hotkeys', search: 'Review Marks' });
 	});

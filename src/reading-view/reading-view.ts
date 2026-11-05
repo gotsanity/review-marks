@@ -2,7 +2,7 @@
 // a section at a time, so each call takes the whole note from the public `getSectionInfo`
 // (never `previewMode.renderer.sections`), parses it once, and decorates only its own lines.
 import { MarkdownView, TFile, type App, type MarkdownPostProcessorContext, type Plugin } from 'obsidian';
-import type { RenderedSection } from '../drag/reading-target';
+import type { RenderedSection } from '../reading-annotate/reading-range';
 import {
 	footnoteListLabels,
 	isReviewLabel,

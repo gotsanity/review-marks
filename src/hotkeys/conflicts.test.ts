@@ -18,7 +18,7 @@ describe('conflict check', () => {
 		expect(alsoUsedBy(annotate.id, ctrlShiftA)).toEqual(['Toggle bold']);
 	});
 
-	it("ignores a command's default hotkey when the user has set its hotkeys, even to none", () => {
+	it("ignores a command's default hotkey when its hotkeys have been customised, even to none", () => {
 		const alsoUsedBy = conflictCheck(
 			[
 				annotate,
@@ -30,13 +30,13 @@ describe('conflict check', () => {
 		expect(alsoUsedBy(annotate.id, ctrlShiftA)).toEqual([]);
 	});
 
-	it("ignores our own command's default hotkey when the user has replaced it", () => {
+	it("ignores our own command's default hotkey once a custom one replaces it", () => {
 		const replaced = { ...annotate, custom: [{ modifiers: ['Alt'], key: 'A' }], defaults: [ctrlShiftA] };
 		const alsoUsedBy = conflictCheck([replaced, { id: 'editor:toggle-bold', name: 'Toggle bold', defaults: [ctrlShiftA] }], false);
 		expect(alsoUsedBy(annotate.id, { modifiers: ['Alt'], key: 'A' })).toEqual([]);
 	});
 
-	it("names another plugin's command whose user hotkey is the same", () => {
+	it("names another plugin's command whose custom hotkey is the same", () => {
 		const alsoUsedBy = conflictCheck(
 			[annotate, { id: 'other-plugin:run', name: 'Other plugin: Run', custom: [{ modifiers: ['Shift', 'Mod'], key: 'A' }] }],
 			false,

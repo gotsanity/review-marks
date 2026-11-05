@@ -2,7 +2,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 
-const FIELD = '.review-marks-trigger-field';
+const FIELD = '.rm-trigger-field';
 
 /** Saves the trigger through the store, as if chosen earlier. */
 const storeTrigger = (trigger: string) =>
@@ -19,8 +19,8 @@ const field = () =>
 	browser.executeObsidian(({ plugins }) => {
 		const tab = (plugins.reviewMarks as unknown as { settingsTab: { containerEl: HTMLElement } }).settingsTab;
 		return {
-			text: tab.containerEl.querySelector('.review-marks-trigger-field')?.textContent ?? null,
-			hint: tab.containerEl.querySelector('.review-marks-trigger-hint')?.textContent ?? '',
+			text: tab.containerEl.querySelector('.rm-trigger-field')?.textContent ?? null,
+			hint: tab.containerEl.querySelector('.rm-trigger-hint')?.textContent ?? '',
 		};
 	});
 
@@ -108,6 +108,22 @@ describe('Drag trigger recorder', () => {
 		expect((await field()).text).toBe('Ctrl + Alt');
 	});
 
+	it('saves only keys held at the same moment', async () => {
+		await record(
+			['down', Key.Ctrl],
+			['down', Key.Alt],
+			['pause', 50],
+			['up', Key.Ctrl],
+			['pause', 50],
+			['down', Key.Shift],
+			['pause', 50],
+			['up', Key.Shift],
+			['up', Key.Alt],
+		);
+		await browser.waitUntil(async () => (await storedTrigger()) === 'mod-alt');
+		expect((await field()).text).toBe('Ctrl + Alt');
+	});
+
 	it('keeps the old trigger on Esc', async () => {
 		await record(['down', Key.Shift], ['pause', 50], ['down', Key.Escape], ['up', Key.Escape], ['up', Key.Shift]);
 		expect(await storedTrigger()).toBe('alt');
@@ -139,7 +155,7 @@ describe('Drag trigger recorder', () => {
 
 	it('turns the trigger off with the × button', async () => {
 		await inSettingsWindow(async () => {
-			await $('.review-marks-trigger-off').click();
+			await $('.rm-trigger-off').click();
 		});
 		await browser.waitUntil(async () => (await storedTrigger()) === 'off');
 		expect((await field()).text).toBe('Off');

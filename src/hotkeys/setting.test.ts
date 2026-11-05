@@ -78,7 +78,7 @@ describe('Hotkeys section', () => {
 
 	it('opens the Hotkeys tab filtered to Review Marks from the section button', () => {
 		const el = draw(fakeApp());
-		const button = Array.from(el.querySelectorAll('button')).find((b) => b.textContent === 'Open Hotkeys settings');
+		const button = Array.from(el.querySelectorAll('button')).find((b) => b.textContent === 'Open hotkeys settings');
 		button?.click();
 		expectHotkeysTabOpened();
 	});
@@ -116,7 +116,7 @@ describe('Hotkeys section conflicts', () => {
 		]);
 	});
 
-	it("doesn't count a default hotkey the user has replaced", () => {
+	it("doesn't count a default hotkey a custom one has replaced", () => {
 		custom['review-marks:annotate-selection'] = [{ modifiers: ['Mod'], key: 'S' }];
 		defaults['editor:save-file'] = [{ modifiers: ['Mod'], key: 'S' }];
 		custom['editor:save-file'] = [{ modifiers: ['Alt'], key: 'S' }];

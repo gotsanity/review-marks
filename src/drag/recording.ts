@@ -18,19 +18,29 @@ export type RecordingStep =
 
 const MODIFIER_KEYS = ['Control', 'Meta', 'OS', 'Alt', 'AltGraph', 'Shift'];
 
-/** One recording. The largest combination held counts, so keys can be released in any order. */
+const count = (m: Modifiers): number => [m.ctrlKey, m.metaKey, m.altKey, m.shiftKey].filter(Boolean).length;
+
+/**
+ * One recording. The largest combination held at one moment counts (the first, on a tie), so keys
+ * can be released in any order.
+ */
 export class TriggerRecording {
-	private readonly peak: Modifiers = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false };
+	private peak: Modifiers = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false };
 
 	constructor(private readonly isMac: boolean) {}
 
 	keydown(event: KeyLike): RecordingStep {
 		if (event.key === 'Escape') return { kind: 'cancelled' };
 		if (!MODIFIER_KEYS.includes(event.key)) return { ...this.recording(), ignored: event.key };
-		this.peak.ctrlKey ||= event.ctrlKey;
-		this.peak.metaKey ||= event.metaKey;
-		this.peak.altKey ||= event.altKey;
-		this.peak.shiftKey ||= event.shiftKey;
+		// The key going down is held even if the event doesn't report it yet.
+		const key = event.key;
+		const held: Modifiers = {
+			ctrlKey: event.ctrlKey || key === 'Control',
+			metaKey: event.metaKey || key === 'Meta' || key === 'OS',
+			altKey: event.altKey || key === 'Alt' || key === 'AltGraph',
+			shiftKey: event.shiftKey || key === 'Shift',
+		};
+		if (count(held) > count(this.peak)) this.peak = held;
 		return this.recording();
 	}
 

@@ -2,7 +2,7 @@
 import type { MarkdownPreviewView } from 'obsidian';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StateEffect } from '@codemirror/state';
-import { caretFromPoint, focusChangeTracking, isExportRender, isTableWidgetChrome, keepsOwnDrag, scrollPreviewTo, tableCellSource, tableWidgetAt, tableWidgetCells } from './guards';
+import { caretFromPoint, focusChangeTracking, isExportRender, inRenderedNoteText, isTableWidgetChrome, keepsOwnDrag, scrollPreviewTo, tableCellSource, tableWidgetAt, tableWidgetCells } from './guards';
 import { block } from './test-support/fake-dom';
 
 const TEXT = 'Intro.\n\n| Name | Result |\n|---|---|\n| Doreth Kell | {17 (fail)}[^r9] |\n';
@@ -221,6 +221,32 @@ describe('keepsOwnDrag', () => {
 	it('takes drags in a Live Preview table, which is drawn as an embed block', () => {
 		const w = widget();
 		expect(keepsOwnDrag(w.querySelector('.table-cell-wrapper') as Element)).toBe(false);
+	});
+});
+
+describe('inRenderedNoteText', () => {
+	/** Reading view's container, as Obsidian 1.7.4 and 1.15 draw it. */
+	const reading = () =>
+		block(
+			'<div class="markdown-reading-view"><div class="markdown-preview-view"><div class="markdown-preview-sizer markdown-preview-section">' +
+				'<div class="markdown-preview-pusher"></div>' +
+				'<div class="mod-header"><div class="inline-title">Title</div><div class="metadata-container"><div class="metadata-properties-heading">Properties</div></div></div>' +
+				'<div class="el-p"><p>Note <strong>text</strong>.</p></div>' +
+				'<div class="mod-footer"><div class="embedded-backlinks">Linked mentions</div></div>' +
+				'</div></div></div>',
+		);
+
+	it('takes a press on the rendered note text', () => {
+		const root = reading();
+		expect(inRenderedNoteText(root.querySelector('.el-p strong') as Element)).toBe(true);
+		expect(inRenderedNoteText(root.querySelector('.el-p') as Element)).toBe(true);
+	});
+
+	it('leaves out the inline title, the properties, the footer and the space around them', () => {
+		const root = reading();
+		for (const sel of ['.inline-title', '.metadata-properties-heading', '.embedded-backlinks', '.markdown-preview-sizer', '.markdown-preview-view']) {
+			expect(inRenderedNoteText(root.querySelector(sel) as Element)).toBe(false);
+		}
 	});
 });
 

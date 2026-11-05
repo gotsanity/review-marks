@@ -6,33 +6,26 @@
 import type { Extension } from '@codemirror/state';
 import { ViewPlugin, type EditorView } from '@codemirror/view';
 import { annotateRange } from '../commands/annotate-selection';
-import { isCommentBoxOpen } from '../comment-box/comment-box';
-import { cellEditorAt, isTableCellEditor, isTableWidgetChrome, keepsOwnDrag, type OpenCellEditor } from '../guards';
-import { triggerHeld } from '../drag/trigger';
+import { cellEditorAt, inNoteEditor, isTableCellEditor, isTableWidgetChrome, keepsOwnDrag, type OpenCellEditor } from '../guards';
 import { notify } from '../notice';
+import { elementOf, isPrimaryPress } from '../pointer';
 import type { ReviewMarksSettings } from '../settings';
-import { releaseDecision, type Release } from './release';
+import { boxOpenSince, isReviewPress, pressAt, type Press } from './press';
+import { releaseDecision, selectionShape, type Release } from './release';
 import { cellToNote } from './table-cell';
 import type { ReviewModeStore } from './store';
 
 /** Where a pointerdown on `target` went down, seen from `view`. */
 function whereDown(view: EditorView, target: EventTarget | null): Release['down'] {
-	if (!(target instanceof Node) || !view.contentDOM.contains(target)) return 'elsewhere';
-	const el = target.nodeType === Node.ELEMENT_NODE ? (target as Element) : target.parentElement;
-	if (!el || isTableWidgetChrome(el)) return 'elsewhere';
+	const el = elementOf(target);
+	if (!el || !view.contentDOM.contains(el) || isTableWidgetChrome(el)) return 'elsewhere';
 	// A cell editor open in one of this note's tables is note content too.
-	if (el.closest('.cm-editor') !== view.dom && !cellEditorAt(view, el)) return 'elsewhere';
+	if (!inNoteEditor(view, el)) return 'elsewhere';
 	return keepsOwnDrag(el) ? 'keeps-own' : 'content';
 }
 
-interface Down {
-	where: Release['down'];
-	/** A box open when the pointer went down: the press closes it, but the gesture is still ignored. */
-	boxOpen: boolean;
-}
-
 class ReleaseHandler {
-	private down: Down | null = null;
+	private press: Press | null = null;
 	private timer: number | null = null;
 
 	constructor(
@@ -59,24 +52,24 @@ class ReleaseHandler {
 	}
 
 	private readonly onDown = (e: PointerEvent): void => {
-		// With the drag trigger held the gesture is annotate-on-drag's, which keeps working as before.
-		const ours = e.button === 0 && !triggerHeld(e, this.settings().dragTrigger, this.isMac);
-		this.down = ours ? { where: whereDown(this.view, e.target), boxOpen: isCommentBoxOpen() } : null;
+		const ours = isReviewPress(e, this.settings().dragTrigger, this.isMac);
+		this.press = ours ? pressAt(whereDown(this.view, e.target)) : null;
 	};
 
 	private readonly onUp = (e: PointerEvent): void => {
-		const down = this.down;
-		this.down = null;
-		if (!this.store.on || e.button !== 0 || e.pointerType === 'touch') return;
+		const press = this.press;
+		this.press = null;
+		if (!this.store.on || !isPrimaryPress(e)) return;
 		if (isTableCellEditor(this.view)) return;
 		// Let CodeMirror finish its own selection handling first.
+		if (this.timer !== null) this.win.clearTimeout(this.timer);
 		this.timer = this.win.setTimeout(() => {
 			this.timer = null;
-			this.release(down);
+			this.release(press);
 		}, 0);
 	};
 
-	private release(down: Down | null): void {
+	private release(press: Press | null): void {
 		const { view } = this;
 		if (!view.dom.isConnected || !this.store.on) return;
 		const text = view.state.doc.toString();
@@ -86,10 +79,11 @@ class ReleaseHandler {
 		if (!cell && !view.hasFocus) return;
 		const decision = releaseDecision({
 			text,
-			ranges: (cell?.view ?? view).state.selection.ranges,
-			commentBoxOpen: (down?.boxOpen ?? false) || isCommentBoxOpen(),
-			down: down?.where ?? null,
-			map: cell ? () => inNote(text, cell) : undefined,
+			selection: cell
+				? { shape: selectionShape(cell.view.state.selection.ranges), map: () => cellSelectionInNote(text, cell) }
+				: { ranges: view.state.selection.ranges },
+			commentBoxOpen: boxOpenSince(press),
+			down: press?.where ?? null,
 		});
 		if ('refuse' in decision) notify(decision.refuse);
 		else if ('start' in decision) annotateRange(view, decision.start.from, decision.start.to, this.settings());
@@ -97,7 +91,7 @@ class ReleaseHandler {
 }
 
 /** The note range of a cell editor's selection. The Annotation goes into the note, never the cell editor's copy. */
-function inNote(text: string, { view, cell }: OpenCellEditor) {
+function cellSelectionInNote(text: string, { view, cell }: OpenCellEditor) {
 	return cellToNote(text, cell, view.state.doc.toString(), view.state.selection.main);
 }
 

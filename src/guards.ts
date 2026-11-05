@@ -149,6 +149,14 @@ export function cellEditorAt(view: EditorView, el: Element): OpenCellEditor | nu
 	return cellView && cell ? { view: cellView, cell } : null;
 }
 
+/**
+ * Is `el` in the note editor `view` itself, or in a cell editor open in one of its tables? Another
+ * editor nested in it, such as an embed's, doesn't count.
+ */
+export function inNoteEditor(view: EditorView, el: Element): boolean {
+	return el.closest('.cm-editor') === view.dom || cellEditorAt(view, el) !== null;
+}
+
 /** The table widgets in a Live Preview editor, each with its cells, skipping any that don't match the source. */
 export function liveTableCells(view: EditorView): RenderedCell[][] {
 	const out: RenderedCell[][] = [];
@@ -172,6 +180,22 @@ const OWN_DRAG = `.cm-embed-block:not(${TABLE_WIDGET}), .markdown-embed, .intern
 /** Does a drag starting on `el` keep its own behaviour rather than annotate? */
 export function keepsOwnDrag(el: Element): boolean {
 	return el.closest(OWN_DRAG) !== null;
+}
+
+// Reading view draws the note's sections as children of the sizer, next to the inline title and
+// properties (.mod-header), the embedded backlinks (.mod-footer) and a spacer (the pusher).
+const NOT_NOTE_TEXT = '.markdown-preview-pusher, .mod-header, .mod-footer';
+
+/**
+ * Is `el` in the rendered note text of a Reading view, not its inline title, properties, footer or
+ * the space around them? False if Reading view isn't drawn as expected.
+ */
+export function inRenderedNoteText(el: Element): boolean {
+	for (let node: Element | null = el; node; node = node.parentElement) {
+		const parent = node.parentElement;
+		if (parent?.classList.contains('markdown-preview-sizer')) return !node.matches(NOT_NOTE_TEXT);
+	}
+	return false;
 }
 
 // ---------- Focus ----------
@@ -374,7 +398,7 @@ interface HotkeyManager {
 	getDefaultHotkeys(id: string): Hotkey[] | undefined;
 }
 
-/** A command's hotkeys as stored: the user's (undefined if they never set any) and its defaults. */
+/** A command's hotkeys as stored: its custom hotkeys (undefined if none were ever set) and its defaults. */
 export interface StoredHotkeys {
 	custom: Hotkey[] | undefined;
 	defaults: Hotkey[] | undefined;
