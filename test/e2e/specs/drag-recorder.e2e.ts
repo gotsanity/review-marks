@@ -108,6 +108,22 @@ describe('Drag trigger recorder', () => {
 		expect((await field()).text).toBe('Ctrl + Alt');
 	});
 
+	it('saves only keys held at the same moment', async () => {
+		await record(
+			['down', Key.Ctrl],
+			['down', Key.Alt],
+			['pause', 50],
+			['up', Key.Ctrl],
+			['pause', 50],
+			['down', Key.Shift],
+			['pause', 50],
+			['up', Key.Shift],
+			['up', Key.Alt],
+		);
+		await browser.waitUntil(async () => (await storedTrigger()) === 'mod-alt');
+		expect((await field()).text).toBe('Ctrl + Alt');
+	});
+
 	it('keeps the old trigger on Esc', async () => {
 		await record(['down', Key.Shift], ['pause', 50], ['down', Key.Escape], ['up', Key.Escape], ['up', Key.Shift]);
 		expect(await storedTrigger()).toBe('alt');

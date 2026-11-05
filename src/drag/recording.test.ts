@@ -33,13 +33,25 @@ describe('TriggerRecording', () => {
 		expect(r.keyup(ev('Control', ''))).toEqual({ kind: 'done', trigger: 'mod-alt', label: 'Ctrl + Alt' });
 	});
 
-	it('counts a key pressed again after another was released', () => {
+	it('saves only keys held at the same moment, not every key pressed', () => {
+		const r = new TriggerRecording(false);
+		r.keydown(ev('Control', 'ctrl'));
+		r.keydown(ev('Alt', 'ctrl alt'));
+		r.keyup(ev('Control', 'alt'));
+		expect(r.keydown(ev('Shift', 'alt shift'))).toEqual({ kind: 'recording', label: 'Ctrl + Alt' });
+		r.keyup(ev('Shift', 'alt'));
+		expect(r.keyup(ev('Alt', ''))).toEqual({ kind: 'done', trigger: 'mod-alt', label: 'Ctrl + Alt' });
+	});
+
+	it('saves a larger combination held later', () => {
 		const r = new TriggerRecording(false);
 		r.keydown(ev('Control', 'ctrl'));
 		r.keydown(ev('Alt', 'ctrl alt'));
 		r.keyup(ev('Alt', 'ctrl'));
-		r.keydown(ev('Shift', 'ctrl shift'));
-		r.keyup(ev('Shift', 'ctrl'));
+		r.keydown(ev('Alt', 'ctrl alt'));
+		r.keydown(ev('Shift', 'ctrl alt shift'));
+		r.keyup(ev('Shift', 'ctrl alt'));
+		r.keyup(ev('Alt', 'ctrl'));
 		expect(r.keyup(ev('Control', ''))).toEqual({ kind: 'done', trigger: 'mod-alt-shift', label: 'Ctrl + Alt + Shift' });
 	});
 
