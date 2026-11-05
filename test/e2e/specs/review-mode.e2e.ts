@@ -265,3 +265,148 @@ describe('Review Mode: annotating in the editor', () => {
 		expect(await editorText()).toBe(EDIT_TEXT);
 	});
 });
+
+// ---------- Annotating on release in Reading view ----------
+
+const READ_NOTE = 'Read me.md';
+const READ_TEXT = [
+	'# Reading',
+	'',
+	'Kell fails the save and seizes in place.',
+	'',
+	'![[Embedded]]',
+	'',
+	'Run `npm test` now.',
+	'',
+	'Some {text}[^r1] to review.',
+	'',
+	'[^r1]: One footnote.',
+	'',
+].join('\n');
+
+/** Opens the note in Reading view, with its embed and footnote list rendered. */
+async function openReading(): Promise<void> {
+	await resetVaultTo({ [READ_NOTE]: READ_TEXT, 'Embedded.md': 'Embedded words to select.\n' });
+	await obsidianPage.openFile(READ_NOTE);
+	await browser.executeObsidian(async ({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (!view) throw new Error('no markdown view');
+		await view.setState({ ...view.getState(), mode: 'preview' }, { history: false });
+	});
+	await browser.waitUntil(
+		async () => (await $$('.markdown-reading-view .internal-embed').map((e) => e.getText())).some((t) => t.includes('Embedded words')),
+		{ timeoutMsg: 'the embed is not rendered' },
+	);
+	await $('.markdown-reading-view .footnotes').waitForExist();
+}
+
+/**
+ * Screen points in Reading view: just inside the first and last characters of `needle` (its first
+ * match, in one text node), and its middle.
+ */
+async function readingPoints(needle: string): Promise<{ start: Point; end: Point; middle: Point }> {
+	const points = await browser.executeObsidian(({ app, obsidian }, needle) => {
+		const root = app.workspace.getActiveViewOfType(obsidian.MarkdownView)?.previewMode.containerEl;
+		if (!root) return null;
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			const i = (n as Text).data.indexOf(needle);
+			if (i < 0) continue;
+			const rect = (at: number) => {
+				const r = document.createRange();
+				r.setStart(n, at);
+				r.setEnd(n, at + 1);
+				return r.getBoundingClientRect();
+			};
+			const a = rect(i);
+			const b = rect(i + needle.length - 1);
+			const y = Math.round((a.top + a.bottom) / 2);
+			return {
+				start: { x: Math.round(a.left + 1), y },
+				end: { x: Math.round(b.right - 1), y },
+				middle: { x: Math.round((a.left + b.right) / 2), y },
+			};
+		}
+		return null;
+	}, needle);
+	if (!points) throw new Error(`"${needle}" is not rendered`);
+	return points;
+}
+
+/** The note's mode: 'preview' for Reading view, 'live' for Live Preview, 'source' for Source mode. */
+const noteMode = () =>
+	browser.executeObsidian(({ app, obsidian }) => {
+		const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+		if (view?.getMode() === 'preview') return 'preview';
+		return view?.getState().source === false ? 'live' : 'source';
+	});
+
+/** READ_TEXT with `target` (above [^r1]'s) annotated as [^r2] and `comment` as its Comment. */
+const readAnnotated = (target: string, comment: string) =>
+	READ_TEXT.replace(target, `{${target}}[^r2]`).replace('[^r1]: One footnote.\n', `[^r2]: ${comment}\n[^r1]: One footnote.\n`);
+
+/** Checks a release left the note alone: still in Reading view, no box, no notice, text unchanged. */
+async function expectIgnored(): Promise<void> {
+	await browser.pause(300);
+	expect(await noteMode()).toBe('preview');
+	await expect($('.rm-cbox')).not.toExist();
+	expect(await $$('.notice').length).toBe(0);
+	expect(await obsidianPage.read(READ_NOTE)).toBe(READ_TEXT);
+}
+
+describe('Review Mode: annotating in Reading view', () => {
+	beforeEach(async () => {
+		await openReading();
+		await setReviewMode(true);
+		await clearNotices();
+	});
+	// Before the harness closes the note: a comment box left open would cover the next test's note.
+	afterEach(async () => {
+		if (await $('.rm-cbox').isExisting()) {
+			await browser.keys('Escape');
+			await $('.rm-cbox').waitForExist({ reverse: true });
+		}
+		await setReviewMode(false);
+		await clearNotices();
+	});
+
+	it('switches to Live Preview on a selection and opens the comment box there', async () => {
+		const { start, end } = await readingPoints('the save');
+		await pointerDrag(start, end);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		expect(await noteMode()).toBe('live');
+
+		await saveComment('Read and marked.', readAnnotated('the save', 'Read and marked.'));
+		// The note stays in Live Preview.
+		expect(await noteMode()).toBe('live');
+	});
+
+	it('opens the comment box on a double-clicked word', async () => {
+		const { middle } = await readingPoints('seizes');
+		await doubleClick(middle);
+		await expect($('.rm-cbox-input')).toBeFocused();
+		expect(await noteMode()).toBe('live');
+		await saveComment('One word.', readAnnotated('seizes', 'One word.'));
+	});
+
+	it('ignores a selection in the footnote list', async () => {
+		const { start, end } = await readingPoints('One footnote');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('ignores a selection that starts on an embed', async () => {
+		const { start, end } = await readingPoints('Embedded words');
+		await pointerDrag(start, end);
+		await expectIgnored();
+	});
+
+	it('refuses a selection inside code with a notice and stays in Reading view', async () => {
+		const { start, end } = await readingPoints('npm test');
+		await pointerDrag(start, end);
+		await expectNotice("Review Marks: an annotation can't start or end in code.");
+		expect(await noteMode()).toBe('preview');
+		await expect($('.rm-cbox')).not.toExist();
+		expect(await obsidianPage.read(READ_NOTE)).toBe(READ_TEXT);
+	});
+});
