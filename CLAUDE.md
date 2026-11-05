@@ -27,6 +27,7 @@ One folder or file per module, so features land as new files:
 - `src/reading-view/`: the Reading view post processor (`getSectionInfo` only) and the footnote list.
 - `src/popover/`: the comment popover. `attach(root, resolve)` wires it to the Targets and badges under any element.
 - `src/sidebar/`: the annotations sidebar (`ItemView`), built from the core's `outline(doc, noteName)`: `tracked-note.ts` (which note), `outline-list.ts` (drawing), `comment-editing.ts` and `actions.ts`. Edits go to the open editor, else through `Vault.process`. `src/status-bar/`: the "N annotations" count and its setting.
+- `src/hotkeys/`: the read-only Hotkeys settings section (`setting.ts`) and `printer.ts`, a pure copy of Obsidian's hotkey printer with the platform as an argument. Hotkeys are read and the Hotkeys tab opened through guards; the plugin never writes hotkeys.
 - `src/commands/`: one file per command. `src/settings.ts`: settings, defaults and `SettingsStore` (`update` saves and notifies `onChange` listeners). `src/main.ts`: wiring only.
 - `src/settings-tab/`: the settings tab. It has no controls of its own: a feature adds a section with `plugin.settingsTab.addSection(SECTION_ORDER.<feature>, (containerEl, store) => …)`, reading `store.current` and saving with `store.update({ … })`. Changes apply to open notes at once.
 
@@ -39,6 +40,7 @@ The plugin's floor is Obsidian 1.7.4 (`minAppVersion`). The `obsidian` typings s
 - `npm test` runs once; `npm run test:watch` watches.
 - Tests sit next to the code as `src/**/*.test.ts`. Pure modules (the annotation core, selection mapping) are tested here on plain strings or a fake DOM, never with Obsidian imports.
 - Fake-DOM tests start with `// @vitest-environment happy-dom` and import `src/test-support/fake-dom.ts`, which builds blocks and Ranges and installs the Obsidian DOM helpers (`el.doc`, `createSpan`) the code uses.
+- The `obsidian` package has typings only, so `vitest.config.ts` aliases it to `src/test-support/obsidian.ts`, a small stand-in (`Setting` and its buttons, drawing Obsidian's markup). Extend it when code under test needs more.
 
 ### End-to-end tests (wdio-obsidian-service)
 

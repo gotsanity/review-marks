@@ -15,6 +15,7 @@ import { registerReadingDrag } from './drag/reading-drag';
 import { exportSettings, registerExport } from './export/export';
 import { dragSettings } from './drag/setting';
 import { highlightSettings, registerHighlightColour } from './highlight/setting';
+import { hotkeysSettings } from './hotkeys/setting';
 import { backspaceExtension } from './live-preview/backspace';
 import { livePreview, refreshLivePreviews } from './live-preview/live-preview';
 import { livePreviewPopover } from './live-preview/popover';
@@ -75,6 +76,7 @@ export default class ReviewMarksPlugin extends Plugin {
 		registerHighlightColour(this, this.store);
 		this.settingsTab.addSection(SECTION_ORDER.highlight, highlightSettings);
 		this.settingsTab.addSection(SECTION_ORDER.export, exportSettings);
+		this.settingsTab.addSection(SECTION_ORDER.hotkeys, hotkeysSettings(this, Platform.isMacOS));
 		this.register(
 			this.store.onChange(() => {
 				refreshLivePreviews(this.app);
