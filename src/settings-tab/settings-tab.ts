@@ -17,6 +17,7 @@ export const SECTION_ORDER = {
 	drag: 40,
 	statusBar: 50,
 	export: 60,
+	hotkeys: 70,
 } as const;
 
 export class ReviewMarksSettingTab extends PluginSettingTab {

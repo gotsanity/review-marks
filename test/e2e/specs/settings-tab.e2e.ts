@@ -1,11 +1,13 @@
 import { browser, expect } from '@wdio/globals';
 import { after, before, describe, it } from 'mocha';
 
-/** The settings tab's controls, as [name, description]. */
+/** The settings tab's controls above the Hotkeys section (its own spec covers it), as [name, description]. */
 const settingItems = () =>
 	browser.executeObsidian(({ plugins }) => {
 		const tab = (plugins.reviewMarks as unknown as { settingsTab: { containerEl: HTMLElement } }).settingsTab;
-		return Array.from(tab.containerEl.querySelectorAll('.setting-item')).map(
+		const items = Array.from(tab.containerEl.querySelectorAll('.setting-item'));
+		const hotkeys = items.findIndex((el) => el.matches('.setting-item-heading') && el.textContent === 'Hotkeys');
+		return items.slice(0, hotkeys < 0 ? items.length : hotkeys).map(
 			(el): [string, string] => [
 				el.querySelector('.setting-item-name')?.textContent ?? '',
 				el.querySelector('.setting-item-description')?.textContent ?? '',
